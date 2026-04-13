@@ -21,3 +21,14 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.15.10",
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # E/F: 基础错误, I: import 排序（替代 isort）
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=quant --cov-report=term-missing"
