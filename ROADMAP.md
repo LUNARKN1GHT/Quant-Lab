@@ -13,11 +13,11 @@
 
 **目标：建立可维护的项目骨架**
 
-- [ ] 用 `uv` 初始化项目，写好 `pyproject.toml`（依赖分组：core / dev / viz）
-- [ ] 规划包结构：`quant/data/`, `quant/factor/`, `quant/backtest/`, `quant/risk/`, `quant/strategy/`
-- [ ] 配置 `ruff`（lint）+ `mypy`（类型检查），写 `Makefile` / `justfile` 统一命令
-- [ ] 写第一个 `CONTRIBUTING.md`，约定代码风格
-- [ ] 搭好 `pytest` 框架，加 `conftest.py` 和第一个空测试
+- [x] 用 `uv` 初始化项目，写好 `pyproject.toml`（依赖分组：core / dev / viz）
+- [x] 规划包结构：`quant/data/`, `quant/factor/`, `quant/backtest/`, `quant/risk/`, `quant/strategy/`
+- [x] 配置 `ruff`（lint）+ `mypy`（类型检查），写 `Makefile` / `justfile` 统一命令
+- [x] 写第一个 `CONTRIBUTING.md`，约定代码风格
+- [x] 搭好 `pytest` 框架，加 `conftest.py` 和第一个空测试
 
 ---
 
