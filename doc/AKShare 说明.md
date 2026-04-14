@@ -26,3 +26,23 @@ stock_zh_a_hist(symbol: str = '000001', period: str = 'daily', start_date: str =
     :return: 每日行情
     :rtype: pandas.DataFrame
 ```
+
+相应的列元素类型如下
+
+```txt
+
+['日期', '股票代码', '开盘', '收盘', '最高', '最低', '成交量', '成交额', '振幅', '涨跌幅', '涨跌额', '换手率']
+日期       object
+股票代码        str
+开盘      float64
+收盘      float64
+最高      float64
+最低      float64
+成交量       int64
+成交额     float64
+振幅      float64
+涨跌幅     float64
+涨跌额     float64
+换手率     float64
+dtype: object
+```
