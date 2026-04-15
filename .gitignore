@@ -210,4 +210,4 @@ __marimo__/
 .vscode/
 
 # 项目数据文件夹
-data/
+/data/
