@@ -48,7 +48,9 @@ class AKShareAdapter:
         price_df = price_df.set_index("日期")
 
         cn_columns = [COLUMN_MAP_AKSHARE[col] for col in columns_ask]
-        return price_df[cn_columns]
+        return price_df[cn_columns].rename(
+            columns=dict(zip(cn_columns, columns_ask))
+        )
 
 
 class YFinanceAdapter:
@@ -74,4 +76,6 @@ class YFinanceAdapter:
         price_df.columns = price_df.columns.get_level_values(0)
 
         en_columns = [COLUMN_MAP_YFINANCE[col] for col in columns_ask]
-        return price_df[en_columns]
+        return price_df[en_columns].rename(
+            columns=dict(zip(en_columns, columns_ask))
+        )
