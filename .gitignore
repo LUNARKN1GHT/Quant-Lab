@@ -208,3 +208,6 @@ __marimo__/
 
 .claude/
 .vscode/
+
+# 项目数据文件夹
+data/
