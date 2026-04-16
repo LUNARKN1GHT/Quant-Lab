@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from quant.factor.ic import calc_ic, calc_icir
+from quant.factor.layered import layered_return
 from quant.factor.momentum import momentum
 from quant.factor.turnover import turnover
 from quant.factor.volatility import volatility
@@ -60,3 +61,14 @@ def test_icir():
     ic_series = pd.Series([0.1, 0.2, 0.3, 0.2, 0.1])
     result = calc_icir(ic_series=ic_series)
     assert result == pytest.approx(ic_series.mean() / ic_series.std())
+
+
+def test_layered_return():
+    factor = pd.Series([1, 2, 3, 4, 5, 6, 7, 8])
+    forward_return = pd.Series([0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08])
+
+    result = layered_return(factor, forward_return, n_groups=4)
+
+    assert len(result) == 4
+    # 因子越大收益越高，第 4 组均值应大于第 1 组
+    assert result.iloc[-1] > result.iloc[0]
