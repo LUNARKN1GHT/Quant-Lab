@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
 from quant.factor.momentum import momentum
@@ -72,3 +73,32 @@ def test_layered_return():
     assert len(result) == 4
     # 因子越大收益越高，第 4 组均值应大于第 1 组
     assert result.iloc[-1] > result.iloc[0]
+
+
+def test_equal_weight():
+    fake_factors = pd.DataFrame(
+        {
+            "factor_1": [1, 2, 3, 4, 5],
+            "factor_2": [6, 7, 8, 9, 10],
+            "factor_3": [5, 4, 3, 2, 1],
+        }
+    )
+
+    result = equal_weight(factors=fake_factors)
+
+    assert result.iloc[0] == pytest.approx(4.0)
+    assert result.iloc[1] == pytest.approx(4.333, rel=1e-3)
+    assert result.iloc[4] == pytest.approx(5.333, rel=1e-3)
+
+
+def test_ic_weight():
+    factors = pd.DataFrame({"factor_1": [1.0, 2.0, 3.0], "factor_2": [4.0, 5.0, 6.0]})
+    # factor_1 权重 0.25，factor_2 权重 0.75（IC 之比为 1:3）
+    ic_scores = pd.Series({"factor_1": 0.1, "factor_2": 0.3})
+
+    result = ic_weight(factors, ic_scores)
+
+    # 第一行：1*0.25 + 4*0.75 = 0.25 + 3.0 = 3.25
+    assert result.iloc[0] == pytest.approx(3.25)
+    # 第二行：2*0.25 + 5*0.75 = 0.5 + 3.75 = 4.25
+    assert result.iloc[1] == pytest.approx(4.25)
