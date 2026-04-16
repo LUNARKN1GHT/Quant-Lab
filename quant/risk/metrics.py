@@ -1,5 +1,6 @@
 from math import sqrt
 
+import numpy as np
 import pandas as pd
 
 
@@ -38,3 +39,15 @@ def var(returns: pd.Series) -> float:
 
 def cvar(returns: pd.Series) -> float:
     return returns[returns <= var(returns)].mean()
+
+
+def beta(returns: pd.Series, market_returns: pd.Series) -> float:
+    """计算 Beta"""
+    return np.polyfit(market_returns, returns, 1)[0]
+
+
+def alpha(
+    returns: pd.Series, market_returns: pd.Series, risk_free: float = 0.0
+) -> float:
+    """计算年化 alpha"""
+    return np.polyfit(market_returns, returns - risk_free, 1)[1]
