@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.momentum import momentum
 from quant.factor.turnover import turnover
 from quant.factor.volatility import volatility
@@ -43,3 +44,19 @@ def test_turnover_factor():
     assert result.iloc[: window - 1].isna().all()
     assert result.iloc[2] == pytest.approx(1.5)
     assert result.iloc[3] == pytest.approx(1.333, rel=1e-3)
+
+
+def test_ic():
+    fake_factor_series = pd.Series([100, 200, 300, 400])
+    fake_return_series = pd.Series([5, 6, 8, 10])
+
+    ic = calc_ic(fake_factor_series, fake_return_series)
+
+    assert ic == pytest.approx(1.0)
+
+
+def test_icir():
+    # 构造一个 IC 序列
+    ic_series = pd.Series([0.1, 0.2, 0.3, 0.2, 0.1])
+    result = calc_icir(ic_series=ic_series)
+    assert result == pytest.approx(ic_series.mean() / ic_series.std())
