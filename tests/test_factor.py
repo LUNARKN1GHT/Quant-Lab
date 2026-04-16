@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from quant.factor.momentum import momentum
+from quant.factor.volatility import volatility
 
 
 def test_momentum_factor():
@@ -19,3 +20,14 @@ def test_momentum_factor():
     assert result.iloc[3] == pytest.approx(1.0)
     # iloc[5] = close[5]/close[3] - 1 = 6/4 - 1 = 0.5
     assert result.iloc[5] == pytest.approx(0.5)
+
+
+def test_volatility_factor():
+    fake_close_series = pd.Series([100.0, 110.0, 121.0, 133.1, 146.41])
+    window = 3
+
+    result = volatility(fake_close_series, window)
+
+    assert result.iloc[:window].isna().all()
+    # 收益率固定，波动率应该为0
+    assert result.iloc[window] == pytest.approx(0.0, abs=1e-10)
