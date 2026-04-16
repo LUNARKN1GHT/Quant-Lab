@@ -53,11 +53,11 @@
 
 **目标：理解回测的核心逻辑与常见陷阱**
 
-- [ ] 实现向量化回测引擎（先理解 vectorized 的局限，再对比 event-driven）
-- [ ] 加入交易成本模型（双边手续费、冲击成本、持仓约束）
-- [ ] 理解并处理**前视偏差（look-ahead bias）**
-- [ ] 理解**生存者偏差（survivorship bias）**，思考如何在数据层规避
-- [ ] 处理调仓频率、再平衡逻辑
+- [x] 实现向量化回测引擎（先理解 vectorized 的局限，再对比 event-driven）
+- [x] 加入交易成本模型（双边手续费、冲击成本、持仓约束）
+- [x] 理解并处理**前视偏差（look-ahead bias）**
+- [x] 理解**生存者偏差（survivorship bias）**，思考如何在数据层规避
+- [x] 处理调仓频率、再平衡逻辑
 
 **学习点：** 两大回测偏差、向量化 vs 事件驱动的取舍
 
@@ -67,8 +67,8 @@
 
 **目标：能读懂并解释策略的风险来源**
 
-- [ ] 实现完整风险指标：Sharpe / Sortino / Max Drawdown / Calmar / VaR / CVaR
-- [ ] 理解 Beta / Alpha（CAPM框架），实现回归计算
+- [x] 实现完整风险指标：Sharpe / Sortino / Max Drawdown / Calmar / VaR / CVaR
+- [x] 理解 Beta / Alpha（CAPM框架），实现回归计算
 - [ ] 实现 Brinson 归因（配置效应 vs 选股效应）
 - [ ] 画 Drawdown 曲线，分析水下时间分布
 - [ ] 写一份策略的风险报告（文字 + 数据）
