@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from quant.factor.momentum import momentum
+from quant.factor.turnover import turnover
 from quant.factor.volatility import volatility
 
 
@@ -31,3 +32,14 @@ def test_volatility_factor():
     assert result.iloc[:window].isna().all()
     # 收益率固定，波动率应该为0
     assert result.iloc[window] == pytest.approx(0.0, abs=1e-10)
+
+
+def test_turnover_factor():
+    fake_volume_series = pd.Series([100, 200, 300, 400, 500])
+    window: int = 3
+
+    result = turnover(fake_volume_series, window)
+
+    assert result.iloc[: window - 1].isna().all()
+    assert result.iloc[2] == pytest.approx(1.5)
+    assert result.iloc[3] == pytest.approx(1.333, rel=1e-3)
