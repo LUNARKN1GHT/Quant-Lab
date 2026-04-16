@@ -209,6 +209,9 @@ __marimo__/
 .claude/
 .vscode/
 
+# macOS
+.DS_Store
+
 # 项目数据文件夹
 /data/
 
