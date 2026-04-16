@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from quant.data.base import AKShareAdapter, YFinanceAdapter
+from quant.data.quality import check_price_quality
 
 
 def test_get_price_returns_correct_columns():
@@ -28,7 +29,7 @@ def test_get_price_returns_correct_columns():
             columns_ask=["open", "close"],
         )
 
-    assert list(result.columns) == ["开盘", "收盘"]
+    assert list(result.columns) == ["open", "close"]
     assert len(result) == 2
 
 
@@ -51,5 +52,21 @@ def test_yfinance_returns_correct_columns():
             columns_ask=["open", "close"],
         )
 
-    assert list(result.columns) == ["Open", "Close"]
+    assert list(result.columns) == ["open", "close"]
     assert len(result) == 2
+
+
+def test_data_cached_Fetcher_price_check():
+    # 构造一个有问题的 df，来看看报告是否符合预期
+    fake_df = pd.DataFrame(
+        {
+            "日期": ["2024-01-02", "2024-01-03"],
+            "open": [10.0, 10.5],
+            "close": [-1, 10.8],
+            "volume": [0, -1],
+        }
+    )
+
+    report = check_price_quality(fake_df)
+
+    assert report["zero_volume_days"] == 1
