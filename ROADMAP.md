@@ -25,11 +25,11 @@
 
 **目标：理解数据获取、清洗、缓存的工程模式**
 
-- [ ] 定义 `DataFetcher` Protocol（接口抽象），理解为什么用 Protocol 而非继承
-- [ ] 实现 `AKShareAdapter`（A股）和 `YFinanceAdapter`（美股）两个适配器
-- [ ] 用 DuckDB 做本地缓存层，理解读写分离、缓存失效策略
-- [ ] 处理脏数据：复权、停牌、退市、涨跌停，写数据质量检查函数
-- [ ] 为数据层写单元测试（mock 外部 API 调用）
+- [x] 定义 `DataFetcher` Protocol（接口抽象），理解为什么用 Protocol 而非继承
+- [x] 实现 `AKShareAdapter`（A股）和 `YFinanceAdapter`（美股）两个适配器
+- [x] 用 DuckDB 做本地缓存层，理解读写分离、缓存失效策略
+- [x] 处理脏数据：复权、停牌、退市、涨跌停，写数据质量检查函数
+- [x] 为数据层写单元测试（mock 外部 API 调用）
 
 **学习点：** Protocol vs ABC、数据管道设计、SQL on local files
 
