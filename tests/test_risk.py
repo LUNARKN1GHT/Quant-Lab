@@ -1,7 +1,16 @@
 import pandas as pd
 import pytest
 
-from quant.risk.metrics import calmar, cvar, max_drawdown, sharpe, sortino, var
+from quant.risk.metrics import (
+    alpha,
+    beta,
+    calmar,
+    cvar,
+    max_drawdown,
+    sharpe,
+    sortino,
+    var,
+)
 
 # 公共测试数据
 RETURNS = pd.Series([0.01, -0.01, 0.02, -0.02, 0.01])
@@ -47,3 +56,15 @@ def test_cvar():
     # CVaR 是比 VaR 更差的均值，应该小于等于 VaR
     assert cvar(RETURNS_VAR) <= var(RETURNS_VAR)
     assert cvar(RETURNS_VAR) == pytest.approx(-0.05, rel=1e-3)
+
+
+def test_beta_market_equals_one():
+    # 策略 = 市场，beta 应为 1
+    market = pd.Series([0.01, -0.01, 0.02, -0.02])
+    assert beta(market, market) == pytest.approx(1.0)
+
+
+def test_alpha_no_excess():
+    # 策略 = 市场，alpha 应接近 0
+    market = pd.Series([0.01, -0.01, 0.02, -0.02])
+    assert alpha(market, market) == pytest.approx(0.0, abs=1e-10)
