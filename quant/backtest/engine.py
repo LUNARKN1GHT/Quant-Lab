@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pandas as pd
 
 
@@ -14,3 +16,10 @@ def backtest(
 
     actual_returns = returns.shift(-1) if shift else returns
     return (position * actual_returns).sum(axis=1) - commission
+
+
+def rebalance(
+    position: pd.DataFrame, freq: Literal["D", "W", "ME"] = "D"
+) -> pd.DataFrame:
+    """按频率对持仓进行再平衡，非调仓日调仓保持不变"""
+    return position.resample(freq).last().reindex(position.index).ffill()
