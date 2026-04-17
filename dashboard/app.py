@@ -61,4 +61,36 @@ elif page == "因子分析":
 
 elif page == "风险报告":
     st.header("风险报告")
-    # TODO: 这里放回测相关的内容
+    import numpy as np
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    from quant.risk.metrics import calmar, cvar, max_drawdown, sharpe, sortino, var
+
+    # TODO：Demo 数据
+    np.random.seed(42)
+    dates = pd.date_range("2024-01-01", periods=252, freq="B")
+    daily_returns = pd.Series(np.random.randn(252) * 0.01, index=dates)
+    cum_returns = (1 + daily_returns).cumprod()
+
+    # 回撤曲线
+    rolling_max = cum_returns.cummax()
+    drawdown = (cum_returns - rolling_max) / rolling_max
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(x=drawdown.index, y=drawdown.values, fill="tozeroy", name="回撤")
+    )
+    fig.update_layout(title="回撤曲线", xaxis_title="日期", yaxis_title="回撤幅度")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 风险指标表格
+    metrics = {
+        "Sharpe Ratio": f"{sharpe(daily_returns):.2f}",
+        "Sortino Ratio": f"{sortino(daily_returns):.2f}",
+        "最大回撤": f"{max_drawdown(daily_returns):.2%}",
+        "Calmar Ratio": f"{calmar(daily_returns):.2f}",
+        "VaR (95%)": f"{var(daily_returns):.2%}",
+        "CVaR (95%)": f"{cvar(daily_returns):.2%}",
+    }
+    st.table(pd.DataFrame(metrics.items(), columns=["指标", "值"]))
