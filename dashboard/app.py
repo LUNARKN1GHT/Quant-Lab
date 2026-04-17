@@ -17,7 +17,9 @@ st.info(
 st.title("Quant-Lab Dashboard")
 
 # 侧边栏导航
-page = st.sidebar.selectbox("选择页面", ["回测结果", "因子分析", "ML 模型", "风险报告"])
+page = st.sidebar.selectbox(
+    "选择页面", ["回测结果", "因子分析", "ML 模型", "风险报告", "归因分析"]
+)
 
 
 @st.cache_data
@@ -132,3 +134,35 @@ elif page == "ML 模型":
         title="Walk-forward 预测 vs 实际", xaxis_title="日期", yaxis_title="收益率"
     )
     st.plotly_chart(fig, use_container_width=True)
+
+elif page == "归因分析":
+    st.header("Brinson 归因分析")
+    import numpy as np
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    from quant.risk.attribution import brinson
+
+    # 模拟行业数据
+    sectors = ["科技", "金融", "消费", "医疗", "能源"]
+    np.random.seed(42)
+    portfolio_weights = pd.Series([0.35, 0.20, 0.25, 0.15, 0.05], index=sectors)
+    benchmark_weights = pd.Series([0.20, 0.30, 0.25, 0.15, 0.10], index=sectors)
+    portfolio_returns = pd.Series(np.random.randn(5) * 0.03 + 0.02, index=sectors)
+    benchmark_returns = pd.Series(np.random.randn(5) * 0.02 + 0.015, index=sectors)
+
+    result = brinson(
+        portfolio_weights, benchmark_weights, portfolio_returns, benchmark_returns
+    )
+
+    # 柱状图
+    fig = go.Figure()
+    for col in ["allocation", "selection", "interaction"]:
+        fig.add_bar(x=result.index, y=result[col], name=col)
+    fig.update_layout(barmode="group", title="各行业 Brinson 归因分解")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 汇总表格
+    st.subheader("超额收益汇总")
+    summary = result.sum().rename("合计")
+    st.table(pd.DataFrame(summary).T)
