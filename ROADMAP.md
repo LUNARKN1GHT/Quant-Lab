@@ -69,8 +69,8 @@
 
 - [x] 实现完整风险指标：Sharpe / Sortino / Max Drawdown / Calmar / VaR / CVaR
 - [x] 理解 Beta / Alpha（CAPM框架），实现回归计算
-- [ ] 实现 Brinson 归因（配置效应 vs 选股效应）
-- [ ] 画 Drawdown 曲线，分析水下时间分布
+- [x] 实现 Brinson 归因（配置效应 vs 选股效应）
+- [x] 画 Drawdown 曲线，分析水下时间分布
 - [ ] 写一份策略的风险报告（文字 + 数据）
 
 **学习点：** CAPM 框架、尾部风险度量、归因分析方法论
