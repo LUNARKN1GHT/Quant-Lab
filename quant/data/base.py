@@ -48,9 +48,7 @@ class AKShareAdapter:
         price_df = price_df.set_index("日期")
 
         cn_columns = [COLUMN_MAP_AKSHARE[col] for col in columns_ask]
-        return price_df[cn_columns].rename(
-            columns=dict(zip(cn_columns, columns_ask))
-        )
+        return price_df[cn_columns].rename(columns=dict(zip(cn_columns, columns_ask)))
 
 
 class YFinanceAdapter:
@@ -61,7 +59,7 @@ class YFinanceAdapter:
         start_time: datetime,
         end_time: datetime,
         columns_ask: list[Literal["open", "close", "volume"]],
-        _adjust: Literal["qfq", "hfq", ""] = "qfq",
+        adjust: Literal["qfq", "hfq", ""] = "qfq",
     ) -> pd.DataFrame:
         """获取历史数据的价格，_adjust 参数对美股无效，仅为保持接口一致"""
         price_df = yf.download(
@@ -76,6 +74,4 @@ class YFinanceAdapter:
         price_df.columns = price_df.columns.get_level_values(0)
 
         en_columns = [COLUMN_MAP_YFINANCE[col] for col in columns_ask]
-        return price_df[en_columns].rename(
-            columns=dict(zip(en_columns, columns_ask))
-        )
+        return price_df[en_columns].rename(columns=dict(zip(en_columns, columns_ask)))
