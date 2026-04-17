@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 
 import pandas as pd
@@ -25,6 +26,7 @@ def run_pipeline(symbols: list[str], start: datetime, end: datetime) -> dict:
             columns_ask=["close"],
         )
         close_dict[symbol] = df["close"]
+        time.sleep(1)  # 每只股票时间等待 1 秒
 
     close = pd.DataFrame(close_dict).dropna()
 
