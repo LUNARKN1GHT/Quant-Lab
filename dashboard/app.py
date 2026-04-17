@@ -8,7 +8,7 @@ import streamlit as st
 st.title("Quant-Lab Dashboard")
 
 # 侧边栏导航
-page = st.sidebar.selectbox("选择页面", ["回测结果", "因子分析", "风险报告"])
+page = st.sidebar.selectbox("选择页面", ["回测结果", "因子分析", "ML 模型", "风险报告"])
 
 if page == "回测结果":
     st.header("回测结果")
@@ -94,3 +94,26 @@ elif page == "风险报告":
         "CVaR (95%)": f"{cvar(daily_returns):.2%}",
     }
     st.table(pd.DataFrame(metrics.items(), columns=["指标", "值"]))
+
+elif page == "ML 模型":
+    st.header("ML Alpha - Walk-forward 预测")
+    import numpy as np
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    # TODO：Demo 数据
+    np.random.seed(42)
+    n = 100
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
+    actual = pd.Series(np.random.randn(n) * 0.01, index=dates)
+    # 模拟预测值（加一点噪声）
+    predicted = actual + pd.Series(np.random.randn(n) * 0.005, index=dates)
+    predicted.iloc[:20] = None  # 前 20 期无预测（训练期）
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=dates, y=actual, name="实际收益"))
+    fig.add_trace(go.Scatter(x=dates, y=predicted, name="预测收益"))
+    fig.update_layout(
+        title="Walk-forward 预测 vs 实际", xaxis_title="日期", yaxis_title="收益率"
+    )
+    st.plotly_chart(fig, use_container_width=True)
