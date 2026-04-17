@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from quant.strategy.compare import compare_strategies
 from quant.strategy.factor_strategy import factor_select
 from quant.strategy.ml_alpha import walk_forward_predict
 from quant.strategy.pairs_trading import (
@@ -74,3 +75,20 @@ def test_hedge_ratio():
     result = hedge_ratio(price_a, price_b)
 
     assert result == pytest.approx(2.0, rel=1e-3)
+
+
+def test_compare_strategies():
+    np.random.seed(42)
+    r1 = pd.Series(np.random.randn(252) * 0.01)
+    r2 = pd.Series(np.random.randn(252) * 0.01)
+
+    result = compare_strategies({"策略A": r1, "策略B": r2})
+
+    # 验证结构
+    assert list(result.columns) == ["策略A", "策略B"]
+    assert "Sharpe Ratio" in result.index
+    assert "Max Drawdown" in result.index
+
+    # 验证 Max Drawdown 为负
+    assert result.loc["Max Drawdown", "策略A"] < 0
+    assert result.loc["Max Drawdown", "策略B"] < 0
