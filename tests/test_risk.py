@@ -82,3 +82,5 @@ def test_brinson_attribution():
     )
 
     assert pytest.approx(result.loc["科技", "allocation"], abs=1e-6) == 0.0036
+    assert result.loc["科技", "selection"] == pytest.approx(0.008, abs=1e-6)
+    assert result["total"].sum() == pytest.approx(0.014, abs=1e-6)
