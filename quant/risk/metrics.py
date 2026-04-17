@@ -25,6 +25,13 @@ def max_drawdown(returns: pd.Series) -> float:
     return drawdown.min()
 
 
+def drawdown_series(returns: pd.Series) -> pd.Series:
+    """计算回撤序列"""
+    cum = (1 + returns).cumprod()
+    history_highest = cum.cummax()
+    return (cum - history_highest) / history_highest
+
+
 def calmar(returns: pd.Series) -> float:
     """Calmar Ratio"""
     annual_return_rate = returns.mean() * 252
