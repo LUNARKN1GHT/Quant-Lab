@@ -1,15 +1,33 @@
+import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
+os.environ["no_proxy"] = "*"
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 
-st.info("当前为演示模式，使用模拟数据展示功能")
+from quant.pipeline import run_pipeline
+
+st.info(
+    "数据来源：AKShare，股票池：600519 / 600036 / 601318 / 000333 / 000858"
+    + " 区间：2022-2024"
+)
 st.title("Quant-Lab Dashboard")
 
 # 侧边栏导航
 page = st.sidebar.selectbox("选择页面", ["回测结果", "因子分析", "ML 模型", "风险报告"])
+
+
+@st.cache_data
+def load_data():
+    return run_pipeline(
+        symbols=["600519", "600036", "601318", "000333", "000858"],
+        start=datetime(2022, 1, 1),
+        end=datetime(2024, 12, 31),
+    )
+
 
 if page == "回测结果":
     st.header("回测结果")
@@ -17,10 +35,8 @@ if page == "回测结果":
     import pandas as pd
     import plotly.graph_objects as go
 
-    # TODO: Demo 数据，模拟 252 天的收益率
-    np.random.seed(42)
-    dates = pd.date_range("2024-01-01", periods=252, freq="B")
-    daily_returns = pd.Series(np.random.randn(252) * 0.01, index=dates)
+    result = load_data()
+    daily_returns = result["returns"]
     cum_returns = (1 + daily_returns).cumprod()
 
     # 绘制累积收益曲线
@@ -68,10 +84,8 @@ elif page == "风险报告":
 
     from quant.risk.metrics import calmar, cvar, max_drawdown, sharpe, sortino, var
 
-    # TODO：Demo 数据
-    np.random.seed(42)
-    dates = pd.date_range("2024-01-01", periods=252, freq="B")
-    daily_returns = pd.Series(np.random.randn(252) * 0.01, index=dates)
+    result = load_data()
+    daily_returns = result["returns"]
     cum_returns = (1 + daily_returns).cumprod()
 
     # 回撤曲线
