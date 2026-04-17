@@ -32,6 +32,24 @@ def drawdown_series(returns: pd.Series) -> pd.Series:
     return (cum - history_highest) / history_highest
 
 
+def underwater_stats(returns: pd.Series) -> dict:
+    """统计水下时间"""
+    dd = drawdown_series(returns)
+    is_underwater = dd < 0
+
+    # 计算连续水下天数
+    streak = 0
+    max_streak = 0
+    for underwater in is_underwater:
+        if underwater:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 0
+
+    return {"max_underwater_days": max_streak, "avg_drawdown": dd[is_underwater].mean()}
+
+
 def calmar(returns: pd.Series) -> float:
     """Calmar Ratio"""
     annual_return_rate = returns.mean() * 252
