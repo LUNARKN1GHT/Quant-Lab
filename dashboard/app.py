@@ -37,7 +37,27 @@ if page == "回测结果":
 
 elif page == "因子分析":
     st.header("因子分析")
-    # TODO: 这里放回测相关的内容
+
+    import numpy as np
+    import pandas as pd
+    import plotly.graph_objects as go
+
+    # TODO：Demo 数据：模拟 24 个月的 IC 序列
+    np.random.seed(42)
+    dates = pd.date_range("2022-01-01", periods=24, freq="ME")
+    ic_series = pd.Series(np.random.randn(24) * 0.05 + 0.03, index=dates)
+
+    # IC bar 图
+    fig = go.Figure()
+    fig.add_bar(x=ic_series.index, y=ic_series.values, name="月度 IC")
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+    fig.update_layout(title="因子 IC 序列", xaxis_title="日期", yaxis_title="IC")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ICIR 摘要
+    from quant.factor.ic import calc_icir
+
+    st.metric("ICIR", f"{calc_icir(ic_series):.2f}")
 
 elif page == "风险报告":
     st.header("风险报告")
