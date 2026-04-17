@@ -1,20 +1,32 @@
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
-# 程序环境配置
 os.environ["no_proxy"] = "*"
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from quant.pipeline import run_pipeline
+from datetime import datetime
 
-result = run_pipeline(
-    symbols=["600519", "600036", "601318", "000333", "000858"],
-    start=datetime(2022, 1, 1),
-    end=datetime(2024, 12, 31),
+from quant.data.base import YFinanceAdapter
+from quant.data.cache import CachedFetcher
+from quant.pipeline import run_pipeline
+from quant.strategy.compare import compare_strategies
+
+SYMBOLS = ["AAPL", "MSFT", "GOOGL", "AMZN", "META"]
+fetcher = CachedFetcher(YFinanceAdapter())
+
+bull = run_pipeline(
+    SYMBOLS, datetime(2019, 1, 1), datetime(2021, 12, 31), fetcher=fetcher
+)
+bear = run_pipeline(
+    SYMBOLS, datetime(2022, 1, 1), datetime(2024, 12, 31), fetcher=fetcher
 )
 
-print("风险指标：")
-for k, v in result["metrics"].items():
-    print(f"  {k}: {v:.4f}")
+result = compare_strategies(
+    {
+        "牛市 2019-2021": bull["returns"],
+        "熊市 2022-2024": bear["returns"],
+    }
+)
+
+print(result.to_string())

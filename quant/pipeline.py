@@ -6,14 +6,16 @@ import pandas as pd
 from quant.backtest.engine import backtest
 from quant.data.base import AKShareAdapter
 from quant.data.cache import CachedFetcher
-from quant.factor.ic import calc_ic
 from quant.factor.momentum import momentum
 from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
 from quant.strategy.factor_strategy import factor_select
 
 
-def run_pipeline(symbols: list[str], start: datetime, end: datetime) -> dict:
-    fetcher = CachedFetcher(AKShareAdapter())
+def run_pipeline(
+    symbols: list[str], start: datetime, end: datetime, fetcher=None
+) -> dict:
+    if fetcher is None:
+        fetcher = CachedFetcher(AKShareAdapter())
 
     # 拉取所有股票收盘价，拼成一张宽表
     close_dict = {}
@@ -26,7 +28,7 @@ def run_pipeline(symbols: list[str], start: datetime, end: datetime) -> dict:
             columns_ask=["close"],
         )
         close_dict[symbol] = df["close"]
-        time.sleep(1)  # 每只股票时间等待 1 秒
+        time.sleep(2)  # 每只股票时间等待 1 秒
 
     close = pd.DataFrame(close_dict).dropna()
 
