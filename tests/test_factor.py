@@ -5,6 +5,7 @@ from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
 from quant.factor.momentum import momentum
+from quant.factor.rsi import rsi
 from quant.factor.turnover import turnover
 from quant.factor.volatility import volatility
 
@@ -102,3 +103,15 @@ def test_ic_weight():
     assert result.iloc[0] == pytest.approx(3.25)
     # 第二行：2*0.25 + 5*0.75 = 0.5 + 3.75 = 4.25
     assert result.iloc[1] == pytest.approx(4.25)
+
+
+def test_rsi_all_up():
+    close = pd.Series([100.0 + i for i in range(20)])
+    result = rsi(close, window=14)
+    assert result.iloc[-1] > 99
+
+
+def test_rsi_all_down():
+    close = pd.Series([100.0 - i for i in range(20)])
+    result = rsi(close, window=14)
+    assert result.iloc[-1] < 1
