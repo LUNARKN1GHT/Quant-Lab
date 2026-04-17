@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from quant.risk.attribution import brinson
 from quant.risk.metrics import (
     alpha,
     beta,
@@ -68,3 +69,16 @@ def test_alpha_no_excess():
     # 策略 = 市场，alpha 应接近 0
     market = pd.Series([0.01, -0.01, 0.02, -0.02])
     assert alpha(market, market) == pytest.approx(0.0, abs=1e-10)
+
+
+def test_brinson_attribution():
+    portfolio_weights = pd.Series({"科技": 0.6, "金融": 0.4})
+    benchmark_weights = pd.Series({"科技": 0.4, "金融": 0.6})
+    portfolio_returns = pd.Series({"科技": 0.10, "金融": 0.04})
+    benchmark_returns = pd.Series({"科技": 0.08, "金融": 0.05})
+
+    result = brinson(
+        portfolio_weights, benchmark_weights, portfolio_returns, benchmark_returns
+    )
+
+    assert pytest.approx(result.loc["科技", "allocation"], abs=1e-6) == 0.0036
