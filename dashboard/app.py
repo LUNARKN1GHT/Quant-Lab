@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import streamlit as st
 
 st.title("Quant-Lab Dashboard")
@@ -22,6 +27,13 @@ if page == "回测结果":
     fig.add_trace(go.Scatter(x=cum_returns.index, y=cum_returns.values, name="策略"))
     fig.update_layout(title="累积收益曲线", xaxis_title="日期", yaxis_title="精值")
     st.plotly_chart(fig, use_container_width=True)
+
+    from quant.risk.metrics import calmar, max_drawdown, sharpe
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Sharp Ratio", f"{sharpe(daily_returns):.2f}")
+    col2.metric("Max Drawdown", f"{max_drawdown(daily_returns):.2f}")
+    col3.metric("Calmar Ratio", f"{calmar(daily_returns):.2f}")
 
 elif page == "因子分析":
     st.header("因子分析")
