@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import streamlit as st
 
+st.info("当前为演示模式，使用模拟数据展示功能")
 st.title("Quant-Lab Dashboard")
 
 # 侧边栏导航
