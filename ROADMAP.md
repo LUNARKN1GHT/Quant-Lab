@@ -81,9 +81,9 @@
 
 **目标：从因子到可执行策略的全链路**
 
-- [ ] **因子选股策略**：基于多因子打分的 Long-Only 组合
-- [ ] **配对交易**：找协整股票对，实现均值回归策略（理解协整 vs 相关性）
-- [ ] **ML Alpha**：用 LightGBM 预测截面收益，Walk-forward 验证（防止 data snooping）
+- [x] **因子选股策略**：基于多因子打分的 Long-Only 组合
+- [x] **配对交易**：找协整股票对，实现均值回归策略（理解协整 vs 相关性）
+- [x] **ML Alpha**：用 LightGBM 预测截面收益，Walk-forward 验证（防止 data snooping）
 - [ ] 对比三种策略在不同市场环境下的表现
 
 **学习点：** 协整检验（ADF / Johansen）、Walk-forward vs 简单训练集划分
