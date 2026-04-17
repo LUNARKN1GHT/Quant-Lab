@@ -64,9 +64,12 @@ def test_data_cached_Fetcher_price_check():
             "open": [10.0, 10.5],
             "close": [-1, 10.8],
             "volume": [0, -1],
+            "high": [100, 200],
+            "low": [200, 100],
         }
     )
 
     report = check_price_quality(fake_df)
 
     assert report["zero_volume_days"] == 1
+    assert report["high_lt_low"] == 1
