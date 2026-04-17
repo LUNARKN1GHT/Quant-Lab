@@ -9,10 +9,10 @@ if page == "回测结果":
     st.header("回测结果")
     # TODO: 这里放回测相关的内容
 
-if page == "因子分析":
+elif page == "因子分析":
     st.header("因子分析")
     # TODO: 这里放回测相关的内容
 
-if page == "风险报告":
+elif page == "风险报告":
     st.header("风险报告")
     # TODO: 这里放回测相关的内容
