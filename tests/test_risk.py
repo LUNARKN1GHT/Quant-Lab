@@ -7,6 +7,7 @@ from quant.risk.metrics import (
     beta,
     calmar,
     cvar,
+    drawdown_series,
     max_drawdown,
     sharpe,
     sortino,
@@ -93,3 +94,16 @@ def test_underwater_stats():
 
     assert stats["max_underwater_days"] == 2
     assert stats["avg_drawdown"] < 0
+
+
+def test_drawdown_series():
+    returns_dd = pd.Series([0.10, -0.05, -0.05, 0.10])
+    dd = drawdown_series(returns_dd)
+
+    # 第一天涨，回撤为 0
+    assert dd.iloc[0] == pytest.approx(0.0, abs=1e-6)
+    # 第二、三天处于水下，回撤为负
+    assert dd.iloc[1] < 0
+    assert dd.iloc[2] < 0
+    # 第四天回升，但未必回到 0（看是否创新高）
+    assert dd.iloc[3] == pytest.approx(0.0, abs=1e-6)
