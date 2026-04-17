@@ -10,6 +10,7 @@ from quant.risk.metrics import (
     max_drawdown,
     sharpe,
     sortino,
+    underwater_stats,
     var,
 )
 
@@ -84,3 +85,11 @@ def test_brinson_attribution():
     assert pytest.approx(result.loc["科技", "allocation"], abs=1e-6) == 0.0036
     assert result.loc["科技", "selection"] == pytest.approx(0.008, abs=1e-6)
     assert result["total"].sum() == pytest.approx(0.014, abs=1e-6)
+
+
+def test_underwater_stats():
+    returns_dd = pd.Series([0.10, -0.05, -0.05, 0.10])
+    stats = underwater_stats(returns_dd)
+
+    assert stats["max_underwater_days"] == 2
+    assert stats["avg_drawdown"] < 0
