@@ -113,7 +113,18 @@
 
 ---
 
-## 阶段九：因子库扩充（Factor Library Expansion）
+## 阶段九：数据集扩充（Dataset Expansion）
+
+**目标：建立足够大的股票池，让因子分析和策略有统计意义**
+
+- [ ] 获取沪深300成分股列表（`ak.index_stock_cons(index="000300")`）
+- [ ] 编写 `scripts/download_data.py`，批量下载全部成分股历史数据并缓存至 CSV
+- [ ] 处理下载过程中的限流、停牌、退市等异常，保证数据完整性
+- [ ] 更新 `run_pipeline` 支持大规模股票池输入
+
+---
+
+## 阶段十：因子库扩充（Factor Library Expansion）
 
 **目标：构建更丰富的因子体系，提升选股信号质量**
 
