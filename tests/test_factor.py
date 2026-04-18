@@ -9,6 +9,7 @@ from quant.factor.ma_bias import ma_bias
 from quant.factor.macd import macd
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
+from quant.factor.skewness import kurtosis, skewness
 from quant.factor.turnover import turnover
 from quant.factor.volatility import volatility
 
@@ -164,3 +165,20 @@ def test_ma_bias_at_mean():
     close = pd.Series([10.0] * 30)
     result = ma_bias(close)
     assert result.dropna().eq(0).all()
+
+
+def test_skewness_returns_series():
+    close = pd.Series([100.0 + i * 0.5 for i in range(30)])
+    result = skewness(close)
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(close)
+
+
+def test_kurtosis_normal_data():
+    import numpy as np
+
+    np.random.seed(42)
+    close = pd.Series(100 + np.random.randn(100).cumsum())
+    result = kurtosis(close)
+    # 正态分布峰度接近 0（excess kurtosis）
+    assert result.dropna().abs().mean() < 5
