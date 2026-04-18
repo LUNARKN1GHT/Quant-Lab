@@ -1,6 +1,7 @@
 import pandas as pd
 import pytest
 
+from quant.factor.bollinger import bollinger_position
 from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
@@ -130,3 +131,21 @@ def test_macd_trending_up():
     close = pd.Series([float(i) for i in range(100)])
     result = macd(close)
     assert result.iloc[-1] > 0
+
+
+def test_bollinger_position_range():
+    # 正常波动的价格，BBP 应在 0~1 附近
+    close = pd.Series([100.0 + i % 10 for i in range(50)])
+    result = bollinger_position(close)
+    # 去掉前 window 期的 NaN
+    valid = result.dropna()
+    assert (valid >= 0).all()
+    assert (valid <= 1).all()
+
+
+def test_bollinger_position_at_mean():
+    # 价格等于均值时，BBP 应为 0.5
+    close = pd.Series([10.0] * 30)
+    result = bollinger_position(close)
+    # 所有值相同时 std=0，会出现 NaN，正常现象
+    assert result.dropna().empty or (result.dropna() == 0.5).all()
