@@ -5,6 +5,7 @@ from quant.factor.bollinger import bollinger_position
 from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
+from quant.factor.ma_bias import ma_bias
 from quant.factor.macd import macd
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
@@ -149,3 +150,17 @@ def test_bollinger_position_at_mean():
     result = bollinger_position(close)
     # 所有值相同时 std=0，会出现 NaN，正常现象
     assert result.dropna().empty or (result.dropna() == 0.5).all()
+
+
+def test_ma_bias_above_mean():
+    # 价格持续高于均线，偏离度应为正
+    close = pd.Series([10.0] * 20 + [15.0] * 10)
+    result = ma_bias(close)
+    assert result.iloc[-1] > 0
+
+
+def test_ma_bias_at_mean():
+    # 价格等于均线，偏离度应为 0
+    close = pd.Series([10.0] * 30)
+    result = ma_bias(close)
+    assert result.dropna().eq(0).all()
