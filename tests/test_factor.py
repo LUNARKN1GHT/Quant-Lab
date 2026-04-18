@@ -4,6 +4,7 @@ import pytest
 from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
+from quant.factor.macd import macd
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
 from quant.factor.turnover import turnover
@@ -115,3 +116,17 @@ def test_rsi_all_down():
     close = pd.Series([100.0 - i for i in range(20)])
     result = rsi(close, window=14)
     assert result.iloc[-1] < 1
+
+
+def test_macd_returns_series():
+    close = pd.Series([float(i) for i in range(50)])
+    result = macd(close)
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(close)
+
+
+def test_macd_trending_up():
+    # 持续上涨时，快线在慢线上方，histogram 应为正
+    close = pd.Series([float(i) for i in range(100)])
+    result = macd(close)
+    assert result.iloc[-1] > 0
