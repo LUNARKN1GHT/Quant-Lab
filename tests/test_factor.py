@@ -4,6 +4,7 @@ import pytest
 from quant.factor.bollinger import bollinger_position
 from quant.factor.combine import equal_weight, ic_weight
 from quant.factor.ic import calc_ic, calc_icir
+from quant.factor.idiosyncratic_vol import idiosyncratic_vol
 from quant.factor.layered import layered_return
 from quant.factor.ma_bias import ma_bias
 from quant.factor.macd import macd
@@ -182,3 +183,25 @@ def test_kurtosis_normal_data():
     result = kurtosis(close)
     # 正态分布峰度接近 0（excess kurtosis）
     assert result.dropna().abs().mean() < 5
+
+
+def test_idiosyncratic_vol_returns_series():
+    import numpy as np
+
+    np.random.seed(42)
+    market = pd.Series(100 + np.random.randn(50).cumsum())
+    stock = market + pd.Series(np.random.randn(50) * 0.5)
+    result = idiosyncratic_vol(stock, market)
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(stock)
+
+
+def test_idiosyncratic_vol_perfect_corr():
+    # 股票完全跟随市场时，特质波动率应接近 0
+    import numpy as np
+
+    np.random.seed(42)
+    market = pd.Series(100 + np.random.randn(50).cumsum())
+    stock = market * 1.2  # 纯 beta，无特质风险
+    result = idiosyncratic_vol(stock, market)
+    assert result.dropna().mean() < 0.01
