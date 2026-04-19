@@ -167,14 +167,14 @@
 > 现状问题：`TRAIN_DAYS = 240`、`TOP_N = 20`、`COMMISSION = 0.0003` 等魔术数字
 > 散落在各脚本中，调参时无法追踪哪套参数产生了哪份结果。
 
-- [ ] 实现 `quant/config.py`：用 `dataclass` 或 `pydantic.BaseModel` 定义全局配置类
+- [x] 实现 `quant/config.py`：用 `dataclass` 或 `pydantic.BaseModel` 定义全局配置类
   - 回测参数：`train_window`、`predict_window`、`rebalance_freq`、`top_n`
   - 交易成本：`commission_rate`、`slippage`
   - 因子参数：各因子默认窗口（如 `rsi_window=14`、`momentum_windows=[20,60,120]`）
   - 数据参数：`data_dir`、`universe`、`start_date`、`end_date`
-- [ ] 支持从 YAML 文件加载，覆盖默认值（`configs/default.yaml`）
-- [ ] 将现有脚本中的硬编码逐步迁移到配置类
-- [ ] 配置对象随回测结果一起序列化保存，确保结果可复现
+- [x] 支持从 YAML 文件加载，覆盖默认值（`configs/default.yaml`）
+- [x] 将现有脚本中的硬编码逐步迁移到配置类
+- [x] 配置对象随回测结果一起序列化保存，确保结果可复现
 
 **学习点：** `dataclass` vs `pydantic`、配置即代码 vs 配置文件的取舍
 
