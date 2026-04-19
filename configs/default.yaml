@@ -1,0 +1,19 @@
+data:
+  data_dir: "data/csi300"
+  universe: "csi300"
+
+factor:
+  momentum_windows: [ 20, 60, 120 ]
+  rsi_window: 14
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  ic_forward_window: 5
+  n_groups: 5
+
+backtest:
+  commission_rate: 0.0003
+  rebalance_freq: "ME"
+  top_n: 20
+  train_window: 240
+  predict_window: 20
