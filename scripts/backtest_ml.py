@@ -8,6 +8,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from quant.backtest.engine import backtest
+from quant.config import Config
 from quant.factor.ma_bias import ma_bias
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
@@ -15,11 +16,9 @@ from quant.factor.volatility import volatility
 from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
 from quant.strategy.factor_strategy import factor_select
 
-DATA_DIR = Path(__file__).parent.parent / "data/csi300"
-TRAIN_DAYS = 240  # 训练窗口（约1年）
-FORWARD_DAYS = 20  # 预测期（约1个月）
-TOP_N = 20
-COMMISSION = 0.0003
+cfg = Config.from_yaml(Path(__file__).parent.parent / "configs/default.yaml")
+
+DATA_DIR = Path(__file__).parent.parent / cfg.data.data_dir
 
 
 def load_close() -> pd.DataFrame:
@@ -60,7 +59,11 @@ def run():
     features = build_features(close)
 
     # 前向收益（标签）
-    fwd_ret = close.pct_change(FORWARD_DAYS).shift(-FORWARD_DAYS).stack()
+    fwd_ret = (
+        close.pct_change(cfg.backtest.predict_window)
+        .shift(-cfg.backtest.predict_window)
+        .stack()
+    )
     fwd_ret.index.names = ["date", "stock"]
     fwd_ret.name = "fwd_ret"
 
@@ -74,13 +77,13 @@ def run():
     import lightgbm as lgb
 
     score_frames = []
-    rebalance_dates = dates[TRAIN_DAYS::FORWARD_DAYS]
+    rebalance_dates = dates[cfg.backtest.train_window :: cfg.backtest.predict_window]
 
     print(f"Walk-forward 训练（共 {len(rebalance_dates)} 期）...")
     for i, t in enumerate(rebalance_dates, 1):
         # 训练集：t 之前 TRAIN_DAYS 个交易日
-        train_dates = dates[dates < t][-TRAIN_DAYS:]
-        if len(train_dates) < TRAIN_DAYS // 2:
+        train_dates = dates[dates < t][-cfg.backtest.train_window :]
+        if len(train_dates) < cfg.backtest.train_window // 2:
             continue
         train_data = dataset.loc[train_dates]
         X_train = train_data.drop(columns="fwd_ret")
@@ -110,7 +113,7 @@ def run():
     print("构造持仓...")
     daily_returns = close.pct_change()
     positions = scores_wide.apply(
-        lambda row: factor_select(row.dropna(), top_n=TOP_N).reindex(
+        lambda row: factor_select(row.dropna(), top_n=cfg.backtest.top_n).reindex(
             close.columns, fill_value=0.0
         ),
         axis=1,
@@ -118,7 +121,9 @@ def run():
     # 对齐到全部交易日，月度调仓（ffill 非调仓日）
     positions = positions.reindex(close.index).ffill().fillna(0.0)
 
-    strategy_returns = backtest(positions, daily_returns, commission_rate=COMMISSION)
+    strategy_returns = backtest(
+        positions, daily_returns, commission_rate=cfg.backtest.commission_rate
+    )
     benchmark_returns = daily_returns.mean(axis=1)
 
     start = strategy_returns.first_valid_index()
