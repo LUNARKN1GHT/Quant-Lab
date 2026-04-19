@@ -1,9 +1,13 @@
-import lightgbm as lgb
 import pandas as pd
+from sklearn.base import RegressorMixin, clone
 
 
 def walk_forward_predict(
-    X: pd.DataFrame, y: pd.Series, train_window: int, predict_window: int
+    X: pd.DataFrame,
+    y: pd.Series,
+    model: RegressorMixin,
+    train_window: int,
+    predict_window: int,
 ) -> pd.Series:
     """随机游走验证
 
@@ -32,11 +36,9 @@ def walk_forward_predict(
         X_pred = X.iloc[start:end]
 
         # 3. 训练模型
-        model = lgb.LGBMRegressor(n_estimators=100, verbosity=-1)
-        model.fit(X_train, y_train)
-
-        # 4. 预测并存入结果
-        predictions.iloc[start:end] = model.predict(X_pred)
+        fold_model = clone(model)
+        fold_model.fit(X_train, y_train)
+        predictions.iloc[start:end] = fold_model.predict(X_pred)
 
         start += predict_window  # 滚动前进
 
