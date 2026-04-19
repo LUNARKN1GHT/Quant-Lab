@@ -7,14 +7,14 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from quant.config import Config
 from quant.factor.ic import calc_ic, calc_icir
 from quant.factor.layered import layered_return
 from quant.factor.momentum import momentum
 
-DATA_DIR = Path(__file__).parent.parent / "data/csi300"
-WINDOW = 20  # 动量回看期（交易日）
-FORWARD = 5  # 预测期（交易日）
-N_GROUPS = 5
+cfg = Config.from_yaml(Path(__file__).parent.parent / "configs/default.yaml")
+
+DATA_DIR = Path(__file__).parent.parent / cfg.data.data_dir
 
 
 def load_all() -> pd.DataFrame:
@@ -39,10 +39,12 @@ def run():
     print(f"  {close.shape[1]} 只股票，{len(close)} 个交易日")
 
     # 计算动量因子（截面：每日每只股票的因子值）
-    factor_df = close.apply(lambda s: momentum(s, WINDOW))
+    factor_df = close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[0]))
 
     # 计算前向收益
-    fwd_return_df = close.pct_change(FORWARD).shift(-FORWARD)
+    fwd_return_df = close.pct_change(cfg.factor.ic_forward_window).shift(
+        -cfg.factor.ic_forward_window
+    )
 
     # 逐日计算截面 IC
     ic_list = []
@@ -61,7 +63,10 @@ def run():
     ic_mean = ic_series.mean()
     ic_positive_ratio = (ic_series > 0).mean()
 
-    print(f"\n=== 动量因子（回看 {WINDOW} 日，预测 {FORWARD} 日）===")
+    print(
+        f"\n=== 动量因子（回看 {cfg.factor.momentum_windows[0]} 日，"
+        + f"预测 {cfg.factor.ic_forward_window} 日）==="
+    )
     print(f"  样本期数   : {len(ic_series)}")
     print(f"  IC 均值    : {ic_mean:.4f}")
     print(f"  IC 标准差  : {ic_series.std():.4f}")
@@ -74,7 +79,9 @@ def run():
     r_last = fwd_return_df.loc[last_date].dropna()
     common = f_last.index.intersection(r_last.index)
 
-    layers = layered_return(f_last[common], r_last[common], n_groups=N_GROUPS)
+    layers = layered_return(
+        f_last[common], r_last[common], n_groups=cfg.factor.ic_forward_window
+    )
     print(f"\n=== 最后截面（{last_date.date()}）分层收益 ===")
     for g, ret in layers.items():
         bar = "█" * int(abs(ret) * 500)
@@ -82,16 +89,18 @@ def run():
         print(f"  Q{g}: {sign}{abs(ret):.2%}  {bar}")
 
     # 全样本分层平均收益
-    print(f"\n=== 全样本平均分层收益（{N_GROUPS} 分位）===")
+    print(f"\n=== 全样本平均分层收益（{cfg.factor.ic_forward_window} 分位）===")
     all_layers = []
     for date in ic_series.index:
         f = factor_df.loc[date].dropna()
         r = fwd_return_df.loc[date].dropna()
         common = f.index.intersection(r.index)
-        if len(common) < N_GROUPS * 2:
+        if len(common) < cfg.factor.ic_forward_window * 2:
             continue
         try:
-            layer = layered_return(f[common], r[common], n_groups=N_GROUPS)
+            layer = layered_return(
+                f[common], r[common], n_groups=cfg.factor.ic_forward_window
+            )
             all_layers.append(layer)
         except Exception:
             continue
