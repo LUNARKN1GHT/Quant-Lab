@@ -1,6 +1,7 @@
 """单因子验证脚本：动量因子 IC / ICIR / 分层收益"""
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -80,7 +81,7 @@ def run():
     common = f_last.index.intersection(r_last.index)
 
     layers = layered_return(
-        f_last[common], r_last[common], n_groups=cfg.factor.ic_forward_window
+        f_last[common], r_last[common], n_groups=cfg.factor.n_groups
     )
     print(f"\n=== 最后截面（{last_date.date()}）分层收益 ===")
     for g, ret in layers.items():
@@ -89,18 +90,16 @@ def run():
         print(f"  Q{g}: {sign}{abs(ret):.2%}  {bar}")
 
     # 全样本分层平均收益
-    print(f"\n=== 全样本平均分层收益（{cfg.factor.ic_forward_window} 分位）===")
+    print(f"\n=== 全样本平均分层收益（{cfg.factor.n_groups} 分位）===")
     all_layers = []
     for date in ic_series.index:
         f = factor_df.loc[date].dropna()
         r = fwd_return_df.loc[date].dropna()
         common = f.index.intersection(r.index)
-        if len(common) < cfg.factor.ic_forward_window * 2:
+        if len(common) < cfg.factor.n_groups * 2:
             continue
         try:
-            layer = layered_return(
-                f[common], r[common], n_groups=cfg.factor.ic_forward_window
-            )
+            layer = layered_return(f[common], r[common], n_groups=cfg.factor.n_groups)
             all_layers.append(layer)
         except Exception:
             continue
@@ -113,6 +112,12 @@ def run():
 
     spread = avg_layers.iloc[-1] - avg_layers.iloc[0]
     print(f"\n  Q5-Q1 价差: {spread:+.2%}")
+
+    ROOT = Path(__file__).parent.parent
+    result_dir = ROOT / "results"
+    result_dir.mkdir(exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    cfg.to_yaml(result_dir / f"config_{timestamp}.yaml")
 
 
 if __name__ == "__main__":
