@@ -8,14 +8,14 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from quant.backtest.engine import backtest, rebalance
+from quant.config import Config
 from quant.factor.momentum import momentum
 from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
 from quant.strategy.factor_strategy import factor_select
 
-DATA_DIR = Path(__file__).parent.parent / "data/csi300"
-WINDOW = 20
-TOP_N = 20
-COMMISSION = 0.0003
+cfg = Config.from_yaml(Path(__file__).parent.parent / "configs/default.yaml")
+
+DATA_DIR = Path(__file__).parent.parent / cfg.data.data_dir
 
 
 def load_close() -> pd.DataFrame:
@@ -40,12 +40,12 @@ def run():
     daily_returns = close.pct_change()
 
     # 每日截面因子值
-    factor_df = close.apply(lambda s: momentum(s, WINDOW))
+    factor_df = close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[0]))
 
     # 每日构造持仓（因子选股 Top20，等权）
     print("构造持仓...")
     positions = factor_df.apply(
-        lambda row: factor_select(row.dropna(), top_n=TOP_N).reindex(
+        lambda row: factor_select(row.dropna(), top_n=cfg.backtest.top_n).reindex(
             factor_df.columns, fill_value=0.0
         ),
         axis=1,
@@ -56,7 +56,7 @@ def run():
 
     # 回测
     strategy_returns = backtest(
-        positions_monthly, daily_returns, commission_rate=COMMISSION
+        positions_monthly, daily_returns, commission_rate=cfg.backtest.commission_rate
     )
 
     # 等权基准（沪深300成分股每日等权）
