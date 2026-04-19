@@ -3,7 +3,9 @@
 import sys
 from pathlib import Path
 
+import lightgbm as lgb
 import pandas as pd
+from sklearn.base import RegressorMixin, clone
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -50,7 +52,7 @@ def build_features(close: pd.DataFrame) -> pd.DataFrame:
     return panel
 
 
-def run():
+def run(model: RegressorMixin | None = None) -> dict:
     print("加载数据...")
     close = load_close()
     print(f"  {close.shape[1]} 只股票，{len(close)} 个交易日")
@@ -73,8 +75,8 @@ def run():
 
     print(f"  有效样本: {len(dataset)} 条，覆盖 {len(dates)} 个交易日")
 
-    # Walk-forward：每 FORWARD_DAYS 步重训练一次
-    import lightgbm as lgb
+    if model is None:
+        model = lgb.LGBMRegressor(n_estimators=100, verbosity=-1)
 
     score_frames = []
     rebalance_dates = dates[cfg.backtest.train_window :: cfg.backtest.predict_window]
@@ -94,9 +96,9 @@ def run():
             continue
         X_pred = dataset.loc[t].drop(columns="fwd_ret")
 
-        model = lgb.LGBMRegressor(n_estimators=100, verbosity=-1)
-        model.fit(X_train, y_train)
-        preds = pd.Series(model.predict(X_pred), index=X_pred.index, name=t)
+        fold_model = clone(model)
+        fold_model.fit(X_train, y_train)
+        preds = pd.Series(fold_model.predict(X_pred), index=X_pred.index, name=t)
         score_frames.append(preds)
 
         if i % 10 == 0:
@@ -142,19 +144,19 @@ def run():
     print(f"{'年化收益':<18} {ann_ret:>9.2%} {ann_ret_bm:>9.2%}")
     print(
         f"{'Sharpe':<18} {sharpe(strategy_returns):>10.3f}"
-        + " {sharpe(benchmark_returns):>10.3f}"
+        + f" {sharpe(benchmark_returns):>10.3f}"
     )
     print(
         f"{'Sortino':<18} {sortino(strategy_returns):>10.3f}"
-        + " {sortino(benchmark_returns):>10.3f}"
+        + f" {sortino(benchmark_returns):>10.3f}"
     )
     print(
         f"{'最大回撤':<18} {max_drawdown(strategy_returns):>9.2%}"
-        + " {max_drawdown(benchmark_returns):>9.2%}"
+        + f" {max_drawdown(benchmark_returns):>9.2%}"
     )
     print(
         f"{'Calmar':<18} {calmar(strategy_returns):>10.3f}"
-        + " {calmar(benchmark_returns):>10.3f}"
+        + f" {calmar(benchmark_returns):>10.3f}"
     )
     print("=" * 50)
 
@@ -169,6 +171,14 @@ def run():
     for year in yearly.index:
         s, b = yearly[year], yearly_bm[year]
         print(f"  {year.year}  策略: {s:>7.2%}  基准: {b:>7.2%}  超额: {s - b:>+7.2%}")
+
+    return {
+        "sharpe": sharpe(strategy_returns),
+        "max_drawdown": max_drawdown(strategy_returns),
+        "calmar": calmar(strategy_returns),
+        "ann_ret": ann_ret,
+        "final_nav": strategy_nav.iloc[-1],
+    }
 
 
 if __name__ == "__main__":
