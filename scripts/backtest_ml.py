@@ -187,7 +187,6 @@ def run_stack(
     meta_model: RegressorMixin,
     holdout_ratio: float = 0.2,
 ) -> dict:
-    from quant.strategy.ml_alpha import walk_forward_stack
 
     print("加载数据...")
     close = load_close()
