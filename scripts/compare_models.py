@@ -8,13 +8,18 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from xgboost import XGBRegressor
 
+from quant.config import Config
 from scripts.backtest_ml import run, run_stack
 
+cfg = Config.from_yaml(Path(__file__).parent.parent / "configs/default.yaml")
+
 MODELS = {
-    "LightGBM": LGBMRegressor(n_estimators=100, verbosity=-1),
-    "RandomForest": RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42),
-    "Ridge": Ridge(alpha=1.0),
-    "XGBoost": XGBRegressor(n_estimators=100, verbosity=0),
+    "LightGBM": LGBMRegressor(n_estimators=cfg.ml.n_estimators, verbosity=-1),
+    "RandomForest": RandomForestRegressor(
+        n_estimators=cfg.ml.n_estimators, n_jobs=-1, random_state=42
+    ),
+    "Ridge": Ridge(alpha=cfg.ml.ridge_alpha),
+    "XGBoost": XGBRegressor(n_estimators=cfg.ml.n_estimators, verbosity=0),
 }
 
 results = {}
@@ -27,7 +32,7 @@ print(f"\n{'=' * 50}")
 print("模型：Stacking（LightGBM + RandomForest + XGBoost + Ridge）")
 results["Stacking"] = run_stack(
     base_models=list(MODELS.values()),
-    meta_model=Ridge(alpha=1.0),
+    meta_model=Ridge(alpha=cfg.ml.ridge_alpha),
 )
 
 # 汇总对比

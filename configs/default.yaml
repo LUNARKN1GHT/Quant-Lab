@@ -17,3 +17,8 @@ backtest:
   top_n: 20
   train_window: 240
   predict_window: 20
+
+ml:
+  n_estimators: 100
+  ridge_alpha: 1.0
+  holdout_ratio: 0.2

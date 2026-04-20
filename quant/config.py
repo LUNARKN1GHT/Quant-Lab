@@ -32,10 +32,23 @@ class BacktestConfig:
 
 
 @dataclass
+class MLConfig:
+    n_estimators: int = 100
+    """RandomForest / GradientBoosting 的决策树数量"""
+
+    ridge_alpha: float = 1.0
+    """Ridge 回归的正则化强度，值越大惩罚越强"""
+
+    holdout_ratio: float = 0.2
+    """滚动窗口内留出用于验证的比例（不参与训练）"""
+
+
+@dataclass
 class Config:
     data: DataConfig = field(default_factory=DataConfig)
     factor: FactorConfig = field(default_factory=FactorConfig)
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
+    ml: MLConfig = field(default_factory=MLConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Config":
@@ -46,6 +59,7 @@ class Config:
             data=DataConfig(**raw.get("data", {})),
             factor=FactorConfig(**raw.get("factor", {})),
             backtest=BacktestConfig(**raw.get("backtest", {})),
+            ml=MLConfig(**raw.get("ml", {})),
         )
 
     def to_yaml(self, path: str | Path) -> None:

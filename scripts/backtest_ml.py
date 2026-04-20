@@ -41,9 +41,9 @@ def load_close() -> pd.DataFrame:
 def build_features(close: pd.DataFrame) -> pd.DataFrame:
     """构建因子特征宽表，每列为一个因子，MultiIndex(date, stock)"""
     factor_dict = {
-        "mom_20": close.apply(lambda s: momentum(s, 20)),
-        "mom_60": close.apply(lambda s: momentum(s, 60)),
-        "rsi_14": close.apply(lambda s: rsi(s, 14)),
+        "mom_20": close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[0])),
+        "mom_60": close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[1])),
+        "rsi_14": close.apply(lambda s: rsi(s, cfg.factor.rsi_window)),
         "vol_20": close.apply(lambda s: volatility(s, 20)),
         "ma_bias_20": close.apply(lambda s: ma_bias(s, 20)),
     }
@@ -77,7 +77,7 @@ def run(model: RegressorMixin | None = None) -> dict:
     print(f"  有效样本: {len(dataset)} 条，覆盖 {len(dates)} 个交易日")
 
     if model is None:
-        model = lgb.LGBMRegressor(n_estimators=100, verbosity=-1)
+        model = lgb.LGBMRegressor(n_estimators=cfg.ml.n_estimators, verbosity=-1)
 
     score_frames = []
     rebalance_dates = dates[cfg.backtest.train_window :: cfg.backtest.predict_window]
@@ -185,7 +185,7 @@ def run(model: RegressorMixin | None = None) -> dict:
 def run_stack(
     base_models: list[RegressorMixin],
     meta_model: RegressorMixin,
-    holdout_ratio: float = 0.2,
+    holdout_ratio: float = cfg.ml.holdout_ratio,
 ) -> dict:
 
     print("加载数据...")
