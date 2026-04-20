@@ -11,9 +11,9 @@ from xgboost import XGBRegressor
 from scripts.backtest_ml import run
 
 MODELS = {
-    # "LightGBM": LGBMRegressor(n_estimators=100, verbosity=-1),
-    # "RandomForest": RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42),
-    # "Ridge": Ridge(alpha=1.0),
+    "LightGBM": LGBMRegressor(n_estimators=100, verbosity=-1),
+    "RandomForest": RandomForestRegressor(n_estimators=100, n_jobs=-1, random_state=42),
+    "Ridge": Ridge(alpha=1.0),
     "XGBoost": XGBRegressor(n_estimators=100, verbosity=0),
 }
 
