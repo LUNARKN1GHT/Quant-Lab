@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import lightgbm as lgb
+import numpy as np
 import pandas as pd
 from sklearn.base import RegressorMixin, clone
 
@@ -163,6 +164,146 @@ def run(model: RegressorMixin | None = None) -> dict:
     final_strategy = strategy_nav.iloc[-1]
     final_bm = benchmark_nav.iloc[-1]
     print(f"\n期末净值  ML策略: {final_strategy:.3f}  基准: {final_bm:.3f}")
+    print(f"超额收益  累计: {final_strategy - final_bm:+.3f}")
+
+    print("\n=== 年度收益 ===")
+    yearly = strategy_returns.resample("YE").apply(lambda r: (1 + r).prod() - 1)
+    yearly_bm = benchmark_returns.resample("YE").apply(lambda r: (1 + r).prod() - 1)
+    for year in yearly.index:
+        s, b = yearly[year], yearly_bm[year]
+        print(f"  {year.year}  策略: {s:>7.2%}  基准: {b:>7.2%}  超额: {s - b:>+7.2%}")
+
+    return {
+        "sharpe": sharpe(strategy_returns),
+        "max_drawdown": max_drawdown(strategy_returns),
+        "calmar": calmar(strategy_returns),
+        "ann_ret": ann_ret,
+        "final_nav": strategy_nav.iloc[-1],
+    }
+
+
+def run_stack(
+    base_models: list[RegressorMixin],
+    meta_model: RegressorMixin,
+    holdout_ratio: float = 0.2,
+) -> dict:
+    from quant.strategy.ml_alpha import walk_forward_stack
+
+    print("加载数据...")
+    close = load_close()
+    print(f"  {close.shape[1]} 只股票，{len(close)} 个交易日")
+
+    print("构建特征...")
+    features = build_features(close)
+
+    fwd_ret = (
+        close.pct_change(cfg.backtest.predict_window)
+        .shift(-cfg.backtest.predict_window)
+        .stack()
+    )
+    fwd_ret.index.names = ["date", "stock"]
+    fwd_ret.name = "fwd_ret"
+
+    dataset = features.join(fwd_ret).dropna()
+    dates = dataset.index.get_level_values("date").unique().sort_values()
+    print(f"  有效样本: {len(dataset)} 条，覆盖 {len(dates)} 个交易日")
+
+    score_frames = []
+    rebalance_dates = dates[cfg.backtest.train_window :: cfg.backtest.predict_window]
+
+    print(f"Walk-forward Stacking（共 {len(rebalance_dates)} 期）...")
+    for i, t in enumerate(rebalance_dates, 1):
+        train_dates = dates[dates < t][-cfg.backtest.train_window :]
+        if len(train_dates) < cfg.backtest.train_window // 2:
+            continue
+        train_data = dataset.loc[train_dates]
+        X_train = train_data.drop(columns="fwd_ret")
+        y_train = train_data["fwd_ret"]
+
+        if t not in dataset.index.get_level_values("date"):
+            continue
+        X_pred = dataset.loc[t].drop(columns="fwd_ret")
+
+        split = int(len(X_train) * (1 - holdout_ratio))
+        X_t1, y_t1 = X_train.iloc[:split], y_train.iloc[:split]
+        X_ho, y_ho = X_train.iloc[split:], y_train.iloc[split:]
+
+        meta_tr = np.zeros((len(X_ho), len(base_models)))
+        meta_pr = np.zeros((len(X_pred), len(base_models)))
+
+        for j, bm in enumerate(base_models):
+            m1 = clone(bm)
+            m1.fit(X_t1, y_t1)
+            meta_tr[:, j] = m1.predict(X_ho)
+
+            m2 = clone(bm)
+            m2.fit(X_train, y_train)
+            meta_pr[:, j] = m2.predict(X_pred)
+
+        mm = clone(meta_model)
+        mm.fit(meta_tr, y_ho)
+        preds = pd.Series(mm.predict(meta_pr), index=X_pred.index, name=t)
+        score_frames.append(preds)
+
+        if i % 10 == 0:
+            print(f"  [{i}/{len(rebalance_dates)}] {t.date()}")
+
+    print("  训练完成")
+
+    scores_wide = pd.DataFrame(score_frames)
+    scores_wide.index = pd.DatetimeIndex(scores_wide.index)
+    scores_wide = scores_wide.reindex(columns=close.columns)
+
+    print("构造持仓...")
+    daily_returns = close.pct_change()
+    positions = scores_wide.apply(
+        lambda row: factor_select(row.dropna(), top_n=cfg.backtest.top_n).reindex(
+            close.columns, fill_value=0.0
+        ),
+        axis=1,
+    )
+    positions = positions.reindex(close.index).ffill().fillna(0.0)
+
+    strategy_returns = backtest(
+        positions, daily_returns, commission_rate=cfg.backtest.commission_rate
+    )
+    benchmark_returns = daily_returns.mean(axis=1)
+
+    start = strategy_returns.first_valid_index()
+    strategy_returns = strategy_returns.loc[start:].fillna(0)
+    benchmark_returns = benchmark_returns.loc[start:].fillna(0)
+
+    strategy_nav = (1 + strategy_returns).cumprod()
+    benchmark_nav = (1 + benchmark_returns).cumprod()
+
+    ann_ret = strategy_returns.mean() * 252
+    ann_ret_bm = benchmark_returns.mean() * 252
+
+    print("\n" + "=" * 50)
+    print(f"{'指标':<18} {'Stacking':>10} {'基准':>10}")
+    print("=" * 50)
+    print(f"{'年化收益':<18} {ann_ret:>9.2%} {ann_ret_bm:>9.2%}")
+    print(
+        f"{'Sharpe':<18} {sharpe(strategy_returns):>10.3f}"
+        + f" {sharpe(benchmark_returns):>10.3f}"
+    )
+    print(
+        f"{'Sortino':<18} {sortino(strategy_returns):>10.3f}"
+        + f" {sortino(benchmark_returns):>10.3f}"
+    )
+    print(
+        f"{'最大回撤':<18} {max_drawdown(strategy_returns):>9.2%}"
+        + f" {max_drawdown(benchmark_returns):>9.2%}"
+    )
+    print(
+        f"{'Calmar':<18} {calmar(strategy_returns):>10.3f}"
+        + f" {calmar(benchmark_returns):>10.3f}"
+    )
+    print("=" * 50)
+
+    final_strategy = strategy_nav.iloc[-1]
+    final_bm = benchmark_nav.iloc[-1]
+    print(f"\n期末净值  Stacking: {final_strategy:.3f}  基准: {final_bm:.3f}")
     print(f"超额收益  累计: {final_strategy - final_bm:+.3f}")
 
     print("\n=== 年度收益 ===")
