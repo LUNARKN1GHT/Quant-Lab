@@ -156,7 +156,7 @@
 
 - [x] **统一模型接口**：重构 `ml_alpha.py`，支持传入任意 sklearn 兼容模型
 - [x] **Random Forest**：对比 LightGBM，理解 Bagging vs Boosting 的差异
-- [ ] **XGBoost**：与 LightGBM 横向对比，速度与精度的取舍
+- [x] **XGBoost**：与 LightGBM 横向对比，速度与精度的取舍
 - [x] **Ridge / Lasso**：线性模型作为 baseline，理解正则化对因子权重的影响
 - [ ] **模型集成（Stacking）**：将多个模型预测合并，提升稳定性（依赖统一接口）
 
