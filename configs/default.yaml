@@ -22,3 +22,12 @@ ml:
   n_estimators: 100
   ridge_alpha: 1.0
   holdout_ratio: 0.2
+
+regime:
+  ma_window: 120
+  breadth_window: 20
+  vol_short: 20
+  vol_long: 60
+  bull_scale: 1.0
+  range_scale: 0.6
+  bear_scale: 0.2

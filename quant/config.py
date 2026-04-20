@@ -44,11 +44,38 @@ class MLConfig:
 
 
 @dataclass
+class RegimeConfig:
+    """整体风险控制配置类"""
+
+    ma_window: int = 120
+    """均线窗口长度"""
+
+    breadth_window: int = 20
+    """因子广度窗口"""
+
+    vol_short: int = 20
+    """波动率短期窗口"""
+
+    vol_long: int = 60
+    """波动率长期窗口"""
+
+    bull_scale: float = 1.0
+    """在牛市时的持仓比例"""
+
+    range_scale: float = 0.6
+    """普通市场环境的时候的持仓比例"""
+
+    bear_scale: float = 0.2
+    """熊市时的持仓比例"""
+
+
+@dataclass
 class Config:
     data: DataConfig = field(default_factory=DataConfig)
     factor: FactorConfig = field(default_factory=FactorConfig)
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     ml: MLConfig = field(default_factory=MLConfig)
+    regime: RegimeConfig = field(default_factory=RegimeConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Config":
@@ -60,6 +87,7 @@ class Config:
             factor=FactorConfig(**raw.get("factor", {})),
             backtest=BacktestConfig(**raw.get("backtest", {})),
             ml=MLConfig(**raw.get("ml", {})),
+            regime=RegimeConfig(**raw.get("regime", {})),
         )
 
     def to_yaml(self, path: str | Path) -> None:
