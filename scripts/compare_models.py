@@ -8,7 +8,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from xgboost import XGBRegressor
 
-from scripts.backtest_ml import run
+from scripts.backtest_ml import run, run_stack
 
 MODELS = {
     "LightGBM": LGBMRegressor(n_estimators=100, verbosity=-1),
@@ -22,6 +22,13 @@ for name, model in MODELS.items():
     print(f"\n{'=' * 50}")
     print(f"模型：{name}")
     results[name] = run(model=model)
+
+print(f"\n{'=' * 50}")
+print("模型：Stacking（LightGBM + RandomForest + XGBoost + Ridge）")
+results["Stacking"] = run_stack(
+    base_models=list(MODELS.values()),
+    meta_model=Ridge(alpha=1.0),
+)
 
 # 汇总对比
 print(f"\n{'=' * 50}")
