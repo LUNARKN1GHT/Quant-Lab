@@ -44,6 +44,23 @@ class MLConfig:
 
 
 @dataclass
+class AdvisorConfig:
+    """仓位建议配置类"""
+
+    target_vol: float = 0.15
+    """目标年化波动率"""
+
+    vol_window: int = 20
+    """波动率计算窗口"""
+
+    max_position: float = 1.0
+    """仓位上限"""
+
+    min_position: float = 0.0
+    """仓位下限"""
+
+
+@dataclass
 class RegimeConfig:
     """整体风险控制配置类"""
 
@@ -76,6 +93,7 @@ class Config:
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     ml: MLConfig = field(default_factory=MLConfig)
     regime: RegimeConfig = field(default_factory=RegimeConfig)
+    advisor: AdvisorConfig = field(default_factory=AdvisorConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Config":
@@ -88,6 +106,7 @@ class Config:
             backtest=BacktestConfig(**raw.get("backtest", {})),
             ml=MLConfig(**raw.get("ml", {})),
             regime=RegimeConfig(**raw.get("regime", {})),
+            advisor=AdvisorConfig(**raw.get("advisor", {})),
         )
 
     def to_yaml(self, path: str | Path) -> None:

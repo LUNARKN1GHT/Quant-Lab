@@ -31,3 +31,9 @@ regime:
   bull_scale: 1.0
   range_scale: 0.6
   bear_scale: 0.2
+
+advisor:
+  target_vol: 0.15
+  vol_window: 20
+  max_position: 1.0
+  min_position: 0.0
