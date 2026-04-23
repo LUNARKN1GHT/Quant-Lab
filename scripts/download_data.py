@@ -54,11 +54,19 @@ def update_symbol(symbol: str, end: str) -> str:
     import pandas as pd
 
     cache_file = DATA_DIR / f"{symbol}.csv"
-    if not cache_file.exists():
+    if not cache_file.exists() or cache_file.stat().st_size == 0:
+        cache_file.unlink(missing_ok=True)
         ok = download_symbol(symbol, "20190101", end)
         return "new" if ok else "fail"
 
     try:
+        header = pd.read_csv(cache_file, nrows=0).columns.tolist()
+        if "trade_date" not in header:
+            # 旧格式（中文列名），删除后全量重下
+            cache_file.unlink()
+            ok = download_symbol(symbol, "20190101", end)
+            return "new" if ok else "fail"
+
         existing = pd.read_csv(cache_file, usecols=["trade_date"])
         last_date = str(existing["trade_date"].max())
         if last_date >= end:

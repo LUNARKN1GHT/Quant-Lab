@@ -23,13 +23,22 @@ def get_data_status() -> pd.DataFrame:
     rows = []
     for f in sorted(DATA_DIR.glob("*.csv")):
         try:
-            df = pd.read_csv(f, usecols=["trade_date"])
+            header = pd.read_csv(f, nrows=0).columns.tolist()
+            if "trade_date" in header:
+                df = pd.read_csv(f, usecols=["trade_date"])
+                date_col = "trade_date"
+            elif "日期" in header:
+                df = pd.read_csv(f, usecols=["日期"])
+                date_col = "日期"
+            else:
+                continue
             rows.append(
                 {
                     "股票": f.stem,
-                    "最早日期": str(df["trade_date"].min()),
-                    "最新日期": str(df["trade_date"].max()),
+                    "最早日期": str(df[date_col].min()),
+                    "最新日期": str(df[date_col].max()),
                     "记录数": len(df),
+                    "格式": "新" if date_col == "trade_date" else "旧⚠️",
                 }
             )
         except Exception:
