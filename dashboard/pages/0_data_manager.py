@@ -58,7 +58,7 @@ if not status.empty:
     col4.metric("总记录数", f"{status['记录数'].sum():,}")
 
     with st.expander("查看各股票详情"):
-        st.dataframe(status, use_container_width=True)
+        st.dataframe(status, width="stretch")
 else:
     st.warning("data/csi300/ 目录下暂无数据")
 

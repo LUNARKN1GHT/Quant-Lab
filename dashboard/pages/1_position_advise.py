@@ -63,10 +63,10 @@ fig.update_layout(
     yaxis_title="仓位比例",
     xaxis_title="日期",
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # Regime 切换记录
 st.subheader("Regime 切换记录（近60日）")
 recent = result.tail(60)
 changes = recent[recent["regime"] != recent["regime"].shift()][["regime", "position"]]
-st.dataframe(changes.style.format({"position": "{:.0%}"}), use_container_width=True)
+st.dataframe(changes.style.format({"position": "{:.0%}"}), width="stretch")

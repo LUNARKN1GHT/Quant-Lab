@@ -135,7 +135,7 @@ if run_btn and windows:
         yaxis_title="ICIR",
         hovermode="x unified",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # IC 均值对比
     st.subheader("IS vs OOS IC 均值")
@@ -165,12 +165,12 @@ if run_btn and windows:
         yaxis_title="IC 均值",
         hovermode="x unified",
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
     # 结果表格
     st.subheader("详细结果")
     styled = df.style.format("{:.4f}", na_rep="—")
-    st.dataframe(styled, use_container_width=True)
+    st.dataframe(styled, width="stretch")
 
     # 推荐参数
     best = df["OOS_ICIR"].idxmax()

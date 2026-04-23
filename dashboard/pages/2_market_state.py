@@ -43,7 +43,7 @@ with col1:
         color=counts.index,
         color_discrete_map={"BULL": "#4CAF50", "RANGE": "#FF9800", "BEAR": "#F44336"},
     )
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, width="stretch")
 
 with col2:
     st.subheader("各年度状态占比")
@@ -75,7 +75,7 @@ with col2:
         xaxis_title="年份",
         yaxis_title="占比",
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width="stretch")
 
 # 近120日走势（指数均值 + 状态着色）
 st.subheader("近120日市场状态")
@@ -103,4 +103,4 @@ for state, color in {"BULL": "#4CAF50", "RANGE": "#FF9800", "BEAR": "#F44336"}.i
         )
     )
 fig_line.update_layout(xaxis_title="日期", yaxis_title="价格", hovermode="x unified")
-st.plotly_chart(fig_line, use_container_width=True)
+st.plotly_chart(fig_line, width="stretch")

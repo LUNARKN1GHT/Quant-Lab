@@ -129,7 +129,7 @@ if run_btn:
         )
     )
     fig.update_layout(xaxis_title="日期", yaxis_title="净值", hovermode="x unified")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # 回撤曲线
     st.subheader("回撤曲线")
@@ -149,7 +149,7 @@ if run_btn:
     fig_dd.update_layout(
         yaxis_tickformat=".0%", xaxis_title="日期", yaxis_title="回撤幅度"
     )
-    st.plotly_chart(fig_dd, use_container_width=True)
+    st.plotly_chart(fig_dd, width="stretch")
 
     # 指标对比
     st.subheader("风险收益指标")

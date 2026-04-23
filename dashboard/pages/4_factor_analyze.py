@@ -203,7 +203,7 @@ with tab1:
     )
     fig_ic.add_hline(y=0, line_color="gray", line_width=0.5)
     fig_ic.update_layout(xaxis_title="日期", yaxis_title="IC", hovermode="x unified")
-    st.plotly_chart(fig_ic, use_container_width=True)
+    st.plotly_chart(fig_ic, width="stretch")
 
     st.subheader(f"因子五分位分层收益（前向 {fwd_window} 日）")
     q_rets = compute_quantile_returns(
@@ -222,7 +222,7 @@ with tab1:
     fig_q.update_layout(
         yaxis_tickformat=".2%", xaxis_title="分位组", yaxis_title="平均前向收益"
     )
-    st.plotly_chart(fig_q, use_container_width=True)
+    st.plotly_chart(fig_q, width="stretch")
 
 
 # ── Tab 2：全因子筛选 ─────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ with tab2:
                 "样本月数": "{:.0f}",
             }
         ).bar(subset=["ICIR"], align="mid", color=["#F44336", "#4CAF50"])
-        st.dataframe(styled, use_container_width=True)
+        st.dataframe(styled, width="stretch")
 
         st.subheader("ICIR 排名")
         fig_bar = go.Figure()
@@ -312,7 +312,7 @@ with tab2:
         fig_bar.update_layout(
             xaxis_title="因子", yaxis_title="ICIR", xaxis_tickangle=-30
         )
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar, width="stretch")
 
         st.subheader("因子相关性矩阵（最新截面）")
         st.caption("相关性过高（>0.7）的因子存在冗余，可考虑合并或剔除")
@@ -325,7 +325,7 @@ with tab2:
             aspect="auto",  # type: ignore[arg-type]
         )
         fig_heat.update_layout(coloraxis_colorbar_title="相关系数")
-        st.plotly_chart(fig_heat, use_container_width=True)
+        st.plotly_chart(fig_heat, width="stretch")
 
         effective = summary_df[summary_df["ICIR"].abs() > icir_threshold]
         if not effective.empty:
