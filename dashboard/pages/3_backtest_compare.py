@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from lightgbm import LGBMRegressor
@@ -12,6 +13,14 @@ from xgboost import XGBRegressor
 
 from dashboard.shared import load_close, sidebar_config
 from quant.backtest.engine import backtest
+from quant.factor.bollinger import bollinger_position
+from quant.factor.idiosyncratic_vol import idiosyncratic_vol
+from quant.factor.ma_bias import ma_bias
+from quant.factor.macd import macd
+from quant.factor.momentum import momentum
+from quant.factor.rsi import rsi
+from quant.factor.skewness import kurtosis, skewness
+from quant.factor.volatility import volatility
 from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
 from quant.strategy.factor_strategy import factor_select
 from scripts.backtest_ml import build_features
@@ -19,16 +28,32 @@ from scripts.backtest_ml import build_features
 st.set_page_config(page_title="回测对比", layout="wide")
 
 cfg = sidebar_config()
-close = load_close()
 
 st.title("📊 回测对比")
 
-# 模型选择
-model_name = st.selectbox(
-    "选择模型",
-    ["LightGBM", "RandomForest", "Ridge", "XGBoost"],
-    index=1,
-)
+# ── 策略类型选择 ───────────────────────────────────────────────────────────
+strategy_type = st.radio("策略类型", ["传统因子", "ML 模型"], horizontal=True)
+
+WINDOWED_FACTORS = [
+    "动量",
+    "RSI",
+    "波动率",
+    "均线偏离",
+    "布林带位置",
+    "偏度",
+    "峰度",
+    "特质波动率",
+]
+DEFAULT_WINDOWS = {
+    "动量": 20,
+    "RSI": 14,
+    "波动率": 20,
+    "均线偏离": 20,
+    "布林带位置": 20,
+    "偏度": 20,
+    "峰度": 20,
+    "特质波动率": 20,
+}
 
 MODEL_MAP = {
     "LightGBM": LGBMRegressor(n_estimators=cfg.ml.n_estimators, verbosity=-1),
@@ -39,24 +64,124 @@ MODEL_MAP = {
     "XGBoost": XGBRegressor(n_estimators=cfg.ml.n_estimators, verbosity=0),
 }
 
-run_btn = st.button("🚀 运行回测", type="primary")
+
+def compute_factor_scores(
+    name: str,
+    close: pd.DataFrame,
+    window: int,
+    macd_fast: int = 12,
+    macd_slow: int = 26,
+    macd_signal: int = 9,
+) -> pd.DataFrame:
+    market = close.mean(axis=1)
+    if name == "动量":
+        return close.apply(lambda s: momentum(s, window))
+    if name == "RSI":
+        return close.apply(lambda s: rsi(s, window))
+    if name == "波动率":
+        return close.apply(lambda s: volatility(s, window))
+    if name == "均线偏离":
+        return close.apply(lambda s: ma_bias(s, window))
+    if name == "布林带位置":
+        return close.apply(lambda s: bollinger_position(s, window))
+    if name == "偏度":
+        return close.apply(lambda s: skewness(s, window))
+    if name == "峰度":
+        return close.apply(lambda s: kurtosis(s, window))
+    if name == "特质波动率":
+        return close.apply(lambda s: idiosyncratic_vol(s, market, window))
+    if name == "MACD":
+        return close.apply(lambda s: macd(s, macd_fast, macd_slow, macd_signal))
+    raise ValueError(f"未知因子: {name}")
 
 
-@st.cache_data(show_spinner="回测运行中，请稍候…")
-def run_backtest(model_name: str, top_n: int, train_window: int, commission: float):
-    import pandas as pd
+# ── 策略参数面板 ───────────────────────────────────────────────────────────
+if strategy_type == "传统因子":
+    col1, col2 = st.columns(2)
+    with col1:
+        factor_type = st.selectbox("因子类型", WINDOWED_FACTORS + ["MACD"])
+    with col2:
+        if factor_type in WINDOWED_FACTORS:
+            factor_window = st.slider(
+                "因子窗口（天）", 5, 120, DEFAULT_WINDOWS.get(factor_type, 20), step=5
+            )
+            macd_fast, macd_slow, macd_signal = 12, 26, 9
+        else:
+            c1, c2, c3 = st.columns(3)
+            macd_fast = c1.slider("Fast", 3, 30, 12, step=1)
+            macd_slow = c2.slider("Slow", 10, 60, 26, step=1)
+            macd_signal = c3.slider("Signal", 3, 20, 9, step=1)
+            factor_window = macd_fast
+    run_label = f"🚀 运行回测（{factor_type}）"
+else:
+    model_name = st.selectbox("选择模型", list(MODEL_MAP.keys()), index=1)
+    factor_type = ""
+    factor_window = 20
+    macd_fast, macd_slow, macd_signal = 12, 26, 9
+    run_label = f"🚀 运行回测（{model_name}）"
+
+run_btn = st.button(run_label, type="primary")
+
+
+# ── 传统因子回测 ───────────────────────────────────────────────────────────
+@st.cache_data(show_spinner="因子回测运行中…")
+def run_factor_backtest(
+    factor_type: str,
+    factor_window: int,
+    macd_fast: int,
+    macd_slow: int,
+    macd_signal: int,
+    top_n: int,
+    commission: float,
+    rebalance_days: int = 20,
+) -> tuple[pd.Series, pd.Series, str]:
+    close = load_close()
+    scores = compute_factor_scores(
+        factor_type, close, factor_window, macd_fast, macd_slow, macd_signal
+    )
+    daily_ret = close.pct_change()
+    rebalance_dates = scores.index[::rebalance_days]
+
+    positions = pd.DataFrame(0.0, index=scores.index, columns=close.columns)
+    for t in rebalance_dates:
+        row = scores.loc[t].dropna()
+        if len(row) < top_n:
+            continue
+        w = factor_select(row, top_n=top_n).reindex(close.columns, fill_value=0.0)
+        positions.loc[t] = w
+
+    positions = positions.ffill().fillna(0.0)
+    strategy_ret = backtest(positions, daily_ret, commission_rate=commission)
+    benchmark_ret = daily_ret.mean(axis=1)
+
+    start = strategy_ret.first_valid_index()
+    label = f"{factor_type}({factor_window}日)"
+    return (
+        strategy_ret.loc[start:].fillna(0),  # type: ignore
+        benchmark_ret.loc[start:].fillna(0),  # type: ignore
+        label,
+    )
+
+
+# ── ML 回测 ────────────────────────────────────────────────────────────────
+@st.cache_data(show_spinner="ML 回测运行中，请稍候…")
+def run_ml_backtest(
+    model_name: str,
+    top_n: int,
+    train_window: int,
+    commission: float,
+) -> tuple[pd.Series, pd.Series, str]:
     from sklearn.base import clone
 
-    close_ = load_close()
-    features = build_features(close_)
-
+    close = load_close()
+    features = build_features(close)
     fwd_ret = (
-        close_.pct_change(cfg.backtest.predict_window)
+        close.pct_change(cfg.backtest.predict_window)
         .shift(-cfg.backtest.predict_window)
         .stack()
     )
     fwd_ret.index.names = ["date", "stock"]
-    fwd_ret.name = "fwd_ret"
+    fwd_ret = fwd_ret.rename("fwd_ret")  # type: ignore
     dataset = features.join(fwd_ret).dropna()
     dates = dataset.index.get_level_values("date").unique().sort_values()
 
@@ -79,44 +204,57 @@ def run_backtest(model_name: str, top_n: int, train_window: int, commission: flo
 
     scores_wide = pd.DataFrame(score_frames)
     scores_wide.index = pd.DatetimeIndex(scores_wide.index)
-    scores_wide = scores_wide.reindex(columns=close_.columns)
+    scores_wide = scores_wide.reindex(columns=close.columns)
 
-    daily_returns = close_.pct_change()
+    daily_returns = close.pct_change()
     positions = scores_wide.apply(
         lambda row: factor_select(row.dropna(), top_n=top_n).reindex(
-            close_.columns, fill_value=0.0
+            close.columns, fill_value=0.0
         ),
         axis=1,
     )
-    positions = positions.reindex(close_.index).ffill().fillna(0.0)
+    positions = positions.reindex(close.index).ffill().fillna(0.0)
     strategy_ret = backtest(positions, daily_returns, commission_rate=commission)
     benchmark_ret = daily_returns.mean(axis=1)
 
     start = strategy_ret.first_valid_index()
-    strategy_ret = strategy_ret.loc[start:].fillna(0)
-    benchmark_ret = benchmark_ret.loc[start:].fillna(0)
-    return strategy_ret, benchmark_ret
-
-
-if run_btn:
-    strategy_ret, benchmark_ret = run_backtest(
+    return (
+        strategy_ret.loc[start:].fillna(0),  # type: ignore
+        benchmark_ret.loc[start:].fillna(0),  # type: ignore
         model_name,
-        cfg.backtest.top_n,
-        cfg.backtest.train_window,
-        cfg.backtest.commission_rate,
     )
+
+
+# ── 结果展示 ───────────────────────────────────────────────────────────────
+if run_btn:
+    if strategy_type == "传统因子":
+        strategy_ret, benchmark_ret, label = run_factor_backtest(
+            factor_type,
+            factor_window,
+            macd_fast,
+            macd_slow,
+            macd_signal,
+            cfg.backtest.top_n,
+            cfg.backtest.commission_rate,
+        )
+    else:
+        strategy_ret, benchmark_ret, label = run_ml_backtest(
+            model_name,
+            cfg.backtest.top_n,
+            cfg.backtest.train_window,
+            cfg.backtest.commission_rate,
+        )
 
     strategy_nav = (1 + strategy_ret).cumprod()
     benchmark_nav = (1 + benchmark_ret).cumprod()
 
-    # 累计收益曲线
     st.subheader("累计收益曲线")
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=strategy_nav.index,
             y=strategy_nav.values,
-            name=f"{model_name}",
+            name=label,
             line=dict(color="#2196F3"),
         )
     )
@@ -131,7 +269,6 @@ if run_btn:
     fig.update_layout(xaxis_title="日期", yaxis_title="净值", hovermode="x unified")
     st.plotly_chart(fig, width="stretch")
 
-    # 回撤曲线
     st.subheader("回撤曲线")
     rolling_max = strategy_nav.cummax()
     drawdown = (strategy_nav - rolling_max) / rolling_max
@@ -151,13 +288,10 @@ if run_btn:
     )
     st.plotly_chart(fig_dd, width="stretch")
 
-    # 指标对比
     st.subheader("风险收益指标")
-    import pandas as pd
-
     metrics = pd.DataFrame(
         {
-            model_name: {
+            label: {
                 "年化收益": f"{strategy_ret.mean() * 252:.2%}",
                 "Sharpe": f"{sharpe(strategy_ret):.3f}",
                 "Sortino": f"{sortino(strategy_ret):.3f}",
@@ -177,4 +311,7 @@ if run_btn:
     )
     st.table(metrics)
 else:
-    st.info("调整左侧参数后点击「运行回测」查看结果。首次运行约需 1-2 分钟。")
+    st.info(
+        "调整参数后点击「运行回测」查看结果。"
+        "传统因子策略约 10–30 秒，ML 策略约 1–2 分钟。"
+    )
