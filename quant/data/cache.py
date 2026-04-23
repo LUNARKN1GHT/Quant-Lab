@@ -52,7 +52,8 @@ class CachedFetcher:
 
         if len(cached) > 0:
             # 如果查找成功，可以直接返回这个表格
-            return cached[["date"] + columns_ask].set_index("date")
+            cols: list[str] = ["date", *columns_ask]
+            return cached[cols].set_index("date")
         else:
             # 查找失败，从API获取新的数据，并存入
             df = self.fetcher.get_price(

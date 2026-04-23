@@ -168,8 +168,8 @@ if run_btn and windows:
 
     # 推荐参数
     best = df["OOS_ICIR"].idxmax()
-    oos_val = df.loc[best, "OOS_ICIR"]
-    is_val = df.loc[best, "IS_ICIR"]
+    oos_val = float(df.loc[best, "OOS_ICIR"])
+    is_val = float(df.loc[best, "IS_ICIR"])
     gap = abs(is_val - oos_val)
     st.info(
         f"**推荐参数：{best} 天**  |  "
