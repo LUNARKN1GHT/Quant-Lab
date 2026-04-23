@@ -60,7 +60,14 @@ def update_symbol(symbol: str, end: str) -> str:
         return "new" if ok else "fail"
 
     try:
-        header = pd.read_csv(cache_file, nrows=0).columns.tolist()
+        try:
+            header = pd.read_csv(cache_file, nrows=0).columns.tolist()
+        except Exception:
+            # 文件损坏或内容无法解析，删除后全量重下
+            cache_file.unlink(missing_ok=True)
+            ok = download_symbol(symbol, "20190101", end)
+            return "new" if ok else "fail"
+
         if "trade_date" not in header:
             # 旧格式（中文列名），删除后全量重下
             cache_file.unlink()
