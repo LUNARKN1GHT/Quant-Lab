@@ -66,11 +66,19 @@ def load_close() -> pd.DataFrame:
     frames = {}
     for f in DATA_DIR.glob("*.csv"):
         try:
-            df = pd.read_csv(f, usecols=["trade_date", "close"])
-        except (pd.errors.EmptyDataError, ValueError):
+            header = pd.read_csv(f, nrows=0).columns.tolist()
+            if "trade_date" in header and "close" in header:
+                df = pd.read_csv(f, usecols=["trade_date", "close"])
+                df["trade_date"] = pd.to_datetime(df["trade_date"], format="%Y%m%d")
+            elif "日期" in header and "收盘" in header:
+                df = pd.read_csv(f, usecols=["日期", "收盘"])
+                df = df.rename(columns={"日期": "trade_date", "收盘": "close"})
+                df["trade_date"] = pd.to_datetime(df["trade_date"])
+            else:
+                continue
+        except Exception:
             continue
         if df.empty:
             continue
-        df["trade_date"] = pd.to_datetime(df["trade_date"], format="%Y%m%d")
         frames[f.stem] = df.set_index("trade_date").sort_index()["close"]
     return pd.DataFrame(frames)
