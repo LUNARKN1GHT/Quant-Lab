@@ -25,9 +25,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "mypy>=1.20.1",
+    "pandas-stubs>=3.0.0.260204",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.10",
+    "scipy-stubs>=1.17.1.4",
+    "types-pyyaml>=6.0.12.20260408",
 ]
 
 [tool.ruff]
@@ -36,6 +39,26 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]  # E/F: 基础错误, I: import 排序（替代 isort）
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_ignores = true
+
+# 无 stubs 且不维护 py.typed 的三方库，忽略类型检查
+[[tool.mypy.overrides]]
+module = [
+    "akshare.*",
+    "yfinance.*",
+    "tushare.*",
+    "statsmodels.*",
+    "sklearn.*",
+    "lightgbm.*",
+    "xgboost.*",
+    "plotly.*",
+    "streamlit.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
