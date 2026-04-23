@@ -8,8 +8,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.shared import load_close, sidebar_config
+from quant.factor.bollinger import bollinger_position
 from quant.factor.ic import calc_icir
 from quant.factor.ma_bias import ma_bias
+from quant.factor.macd import macd
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
 from quant.factor.volatility import volatility
@@ -25,6 +27,8 @@ FACTOR_BUILDERS = {
     "RSI": lambda c, w: c.apply(lambda s: rsi(s, w)),
     "波动率": lambda c, w: c.apply(lambda s: volatility(s, w)),
     "均线偏离": lambda c, w: c.apply(lambda s: ma_bias(s, w)),
+    "布林带位置": lambda c, w: c.apply(lambda s: bollinger_position(s, w)),
+    "MACD(fast)": lambda c, w: c.apply(lambda s: macd(s, fast=w)),
 }
 
 PARAM_RANGES = {
@@ -32,6 +36,8 @@ PARAM_RANGES = {
     "RSI": [7, 10, 14, 21, 28],
     "波动率": [5, 10, 20, 40, 60],
     "均线偏离": [5, 10, 20, 40, 60],
+    "布林带位置": [10, 20, 30, 40, 60],
+    "MACD(fast)": [5, 8, 12, 16, 20],
 }
 
 col1, col2, col3 = st.columns(3)
