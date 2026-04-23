@@ -65,7 +65,7 @@ tab1, tab2 = st.tabs(["单因子分析", "全因子筛选"])
 
 # ── Tab 1：单因子详细分析 ──────────────────────────────────────────────────
 with tab1:
-    factor_name = st.selectbox("选择因子", FACTOR_NAMES)
+    factor_name: str = st.selectbox("选择因子", FACTOR_NAMES)[0]
     fwd_window = st.slider(
         "前向收益窗口（天）", 5, 60, cfg.factor.ic_forward_window, step=5
     )
@@ -78,7 +78,7 @@ with tab1:
 
         ic_list = []
         for date, row in factor_vals.resample("ME").last().iterrows():
-            actual_date = fwd_ret.index.asof(date)
+            actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
             if actual_date is None or str(actual_date) == "NaT":
                 continue
             f = row.dropna()
@@ -86,7 +86,7 @@ with tab1:
             common = f.index.intersection(r.index)
             if len(common) < 10:
                 continue
-            ic_list.append({"date": date, "ic": f[common].corr(r[common])})
+            ic_list.append({"date": date, "ic": f[common].corr(r[common])})  # type: ignore[arg-type]
 
         return pd.DataFrame(ic_list).set_index("date")["ic"].dropna()
 
@@ -98,9 +98,9 @@ with tab1:
         factor_vals = compute_single_factor(factor_name, close)
         fwd_ret = close.pct_change(fwd_window).shift(-fwd_window)
 
-        group_rets: dict[str, list] = {f"Q{i + 1}": [] for i in range(n_groups)}
+        group_rets: dict[str, list[float]] = {f"Q{i + 1}": [] for i in range(n_groups)}
         for date, row in factor_vals.resample("ME").last().iterrows():
-            actual_date = fwd_ret.index.asof(date)
+            actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
             if actual_date is None or str(actual_date) == "NaT":
                 continue
             f = row.dropna()
@@ -113,7 +113,7 @@ with tab1:
             )
             for g in group_rets:
                 stocks = labels[labels == g].index
-                group_rets[g].append(r[stocks].mean())
+                group_rets[g].append(float(r[stocks].mean()))  # type: ignore
 
         return {g: float(np.mean(v)) for g, v in group_rets.items() if v}
 
@@ -171,7 +171,7 @@ with tab2:
     run_all = st.button("🔍 运行全因子筛选", type="primary")
 
     @st.cache_data(show_spinner="批量计算全因子 IC/ICIR…")
-    def compute_all_factors(fwd_window: int):
+    def compute_all_factors(fwd_window: int) -> tuple[pd.DataFrame, pd.DataFrame]:
         close = load_close()
         fwd_ret = close.pct_change(fwd_window).shift(-fwd_window)
 
@@ -182,7 +182,7 @@ with tab2:
             factor_vals = compute_single_factor(name, close)
             ic_list = []
             for date, row in factor_vals.resample("ME").last().iterrows():
-                actual_date = fwd_ret.index.asof(date)
+                actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
                 if actual_date is None or str(actual_date) == "NaT":
                     continue
                 f = row.dropna()
@@ -190,7 +190,7 @@ with tab2:
                 common = f.index.intersection(r.index)
                 if len(common) < 10:
                     continue
-                ic_list.append(f[common].corr(r[common]))
+                ic_list.append(f[common].corr(r[common]))  # type: ignore[arg-type]
             ic_s = pd.Series(ic_list).dropna()
             if ic_s.empty:
                 continue
@@ -266,7 +266,7 @@ with tab2:
             color_continuous_scale="RdBu_r",
             zmin=-1,
             zmax=1,
-            text_auto=".2f",
+            text_auto=".2f",  # type: ignore
             aspect="auto",
         )
         fig_heat.update_layout(coloraxis_colorbar_title="相关系数")
