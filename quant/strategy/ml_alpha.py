@@ -1,14 +1,15 @@
 import numpy as np
 import pandas as pd
 from sklearn.base import RegressorMixin, clone
+from sklearn.linear_model import Ridge
 
 
 def walk_forward_predict(
     X: pd.DataFrame,
     y: pd.Series,
-    model: RegressorMixin,
     train_window: int,
     predict_window: int,
+    model: RegressorMixin = None,
 ) -> pd.Series:
     """随机游走验证
 
@@ -21,10 +22,11 @@ def walk_forward_predict(
     Returns:
         pd.Series: 返回样本外预测值
     """
-    # 用于存预测结果
+    if model is None:
+        model = Ridge()
     predictions = pd.Series(index=y.index, dtype=float)
     total = len(X)
-    start = train_window  # 从第一个完整训练窗口结束的位置开始
+    start = train_window
 
     while start < total:
         end = min(start + predict_window, total)  # 本轮预测到的位置
