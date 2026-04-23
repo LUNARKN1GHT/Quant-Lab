@@ -26,76 +26,136 @@ cfg = sidebar_config()
 
 st.title("🔬 因子分析")
 
-FACTOR_NAMES = [
-    "动量(20日)",
-    "动量(60日)",
-    "动量(120日)",
-    "RSI(14日)",
-    "波动率(20日)",
-    "均线偏离(20日)",
-    "MACD",
-    "布林带位置(20日)",
-    "偏度(20日)",
-    "峰度(20日)",
-    "特质波动率(20日)",
+# 有单一窗口参数的因子
+WINDOWED_FACTORS = [
+    "动量",
+    "RSI",
+    "波动率",
+    "均线偏离",
+    "布林带位置",
+    "偏度",
+    "峰度",
+    "特质波动率",
 ]
+# 有独立参数的因子
+OTHER_FACTORS = ["MACD"]
+ALL_FACTOR_TYPES = WINDOWED_FACTORS + OTHER_FACTORS
+
+# 全因子筛选时各因子的默认窗口
+DEFAULT_WINDOWS: dict[str, int] = {
+    "动量": 20,
+    "RSI": 14,
+    "波动率": 20,
+    "均线偏离": 20,
+    "布林带位置": 20,
+    "偏度": 20,
+    "峰度": 20,
+    "特质波动率": 20,
+}
 
 
-def compute_single_factor(name: str, close: pd.DataFrame) -> pd.DataFrame:
+def compute_factor(
+    name: str,
+    close: pd.DataFrame,
+    window: int = 20,
+    macd_fast: int = 12,
+    macd_slow: int = 26,
+    macd_signal: int = 9,
+) -> pd.DataFrame:
     market = close.mean(axis=1)
-    dispatch = {
-        "动量(20日)": lambda: close.apply(lambda s: momentum(s, 20)),
-        "动量(60日)": lambda: close.apply(lambda s: momentum(s, 60)),
-        "动量(120日)": lambda: close.apply(lambda s: momentum(s, 120)),
-        "RSI(14日)": lambda: close.apply(lambda s: rsi(s, 14)),
-        "波动率(20日)": lambda: close.apply(lambda s: volatility(s, 20)),
-        "均线偏离(20日)": lambda: close.apply(lambda s: ma_bias(s, 20)),
-        "MACD": lambda: close.apply(lambda s: macd(s)),
-        "布林带位置(20日)": lambda: close.apply(lambda s: bollinger_position(s, 20)),
-        "偏度(20日)": lambda: close.apply(lambda s: skewness(s, 20)),
-        "峰度(20日)": lambda: close.apply(lambda s: kurtosis(s, 20)),
-        "特质波动率(20日)": lambda: close.apply(
-            lambda s: idiosyncratic_vol(s, market, 20)
-        ),
-    }
-    return dispatch[name]()
+    if name == "动量":
+        return close.apply(lambda s: momentum(s, window))
+    if name == "RSI":
+        return close.apply(lambda s: rsi(s, window))
+    if name == "波动率":
+        return close.apply(lambda s: volatility(s, window))
+    if name == "均线偏离":
+        return close.apply(lambda s: ma_bias(s, window))
+    if name == "布林带位置":
+        return close.apply(lambda s: bollinger_position(s, window))
+    if name == "偏度":
+        return close.apply(lambda s: skewness(s, window))
+    if name == "峰度":
+        return close.apply(lambda s: kurtosis(s, window))
+    if name == "特质波动率":
+        return close.apply(lambda s: idiosyncratic_vol(s, market, window))
+    if name == "MACD":
+        return close.apply(lambda s: macd(s, macd_fast, macd_slow, macd_signal))
+    raise ValueError(f"未知因子: {name}")
+
+
+def _calc_monthly_ic(factor_vals: pd.DataFrame, fwd_ret: pd.DataFrame) -> pd.Series:
+    ic_list = []
+    for date, row in factor_vals.resample("ME").last().iterrows():
+        actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
+        if actual_date is None or str(actual_date) == "NaT":
+            continue
+        f = row.dropna()
+        r = fwd_ret.loc[actual_date].reindex(f.index).dropna()
+        common = f.index.intersection(r.index)
+        if len(common) < 10:
+            continue
+        ic_list.append({"date": date, "ic": f[common].corr(r[common])})  # type: ignore[arg-type]
+    if not ic_list:
+        return pd.Series(dtype=float)
+    return pd.DataFrame(ic_list).set_index("date")["ic"].dropna()
 
 
 tab1, tab2 = st.tabs(["单因子分析", "全因子筛选"])
 
 # ── Tab 1：单因子详细分析 ──────────────────────────────────────────────────
 with tab1:
-    factor_name: str = st.selectbox("选择因子", FACTOR_NAMES)[0]
-    fwd_window = st.slider(
-        "前向收益窗口（天）", 5, 60, cfg.factor.ic_forward_window, step=5
-    )
+    col_sel, col_fwd = st.columns([2, 1])
+    with col_sel:
+        factor_type = st.selectbox("因子类型", ALL_FACTOR_TYPES)
+    with col_fwd:
+        fwd_window = st.slider(
+            "前向收益窗口（天）", 5, 60, cfg.factor.ic_forward_window, step=5
+        )
+
+    # 根据因子类型动态显示参数控件
+    if factor_type in WINDOWED_FACTORS:
+        window = st.slider(
+            "因子窗口（天）", 5, 120, DEFAULT_WINDOWS.get(factor_type, 20), step=5
+        )
+        macd_fast, macd_slow, macd_signal = 12, 26, 9
+    else:  # MACD
+        c1, c2, c3 = st.columns(3)
+        macd_fast = c1.slider("Fast", 3, 30, 12, step=1)
+        macd_slow = c2.slider("Slow", 10, 60, 26, step=1)
+        macd_signal = c3.slider("Signal", 3, 20, 9, step=1)
+        window = macd_fast
 
     @st.cache_data(show_spinner="计算因子 IC…")
-    def compute_ic(factor_name: str, fwd_window: int) -> pd.Series:
+    def compute_ic(
+        factor_type: str,
+        window: int,
+        macd_fast: int,
+        macd_slow: int,
+        macd_signal: int,
+        fwd_window: int,
+    ) -> pd.Series:
         close = load_close()
-        factor_vals = compute_single_factor(factor_name, close)
+        factor_vals = compute_factor(
+            factor_type, close, window, macd_fast, macd_slow, macd_signal
+        )
         fwd_ret = close.pct_change(fwd_window).shift(-fwd_window)
-
-        ic_list = []
-        for date, row in factor_vals.resample("ME").last().iterrows():
-            actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
-            if actual_date is None or str(actual_date) == "NaT":
-                continue
-            f = row.dropna()
-            r = fwd_ret.loc[actual_date].reindex(f.index).dropna()
-            common = f.index.intersection(r.index)
-            if len(common) < 10:
-                continue
-            ic_list.append({"date": date, "ic": f[common].corr(r[common])})  # type: ignore[arg-type]
-
-        return pd.DataFrame(ic_list).set_index("date")["ic"].dropna()
+        return _calc_monthly_ic(factor_vals, fwd_ret)
 
     @st.cache_data(show_spinner="计算分层收益…")
     def compute_quantile_returns(
-        factor_name: str, fwd_window: int, n_groups: int = 5
+        factor_type: str,
+        window: int,
+        macd_fast: int,
+        macd_slow: int,
+        macd_signal: int,
+        fwd_window: int,
+        n_groups: int = 5,
     ) -> dict[str, float]:
         close = load_close()
-        factor_vals = compute_single_factor(factor_name, close)
+        factor_vals = compute_factor(
+            factor_type, close, window, macd_fast, macd_slow, macd_signal
+        )
         fwd_ret = close.pct_change(fwd_window).shift(-fwd_window)
 
         group_rets: dict[str, list[float]] = {f"Q{i + 1}": [] for i in range(n_groups)}
@@ -113,11 +173,13 @@ with tab1:
             )
             for g in group_rets:
                 stocks = labels[labels == g].index
-                group_rets[g].append(float(r[stocks].mean()))  # type: ignore
+                group_rets[g].append(float(r[stocks].mean()))  # type: ignore[arg-type]
 
         return {g: float(np.mean(v)) for g, v in group_rets.items() if v}
 
-    ic_series = compute_ic(factor_name, fwd_window)
+    ic_series = compute_ic(
+        factor_type, window, macd_fast, macd_slow, macd_signal, fwd_window
+    )
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("IC 均值", f"{ic_series.mean():.4f}")
@@ -144,7 +206,9 @@ with tab1:
     st.plotly_chart(fig_ic, use_container_width=True)
 
     st.subheader(f"因子五分位分层收益（前向 {fwd_window} 日）")
-    q_rets = compute_quantile_returns(factor_name, fwd_window)
+    q_rets = compute_quantile_returns(
+        factor_type, window, macd_fast, macd_slow, macd_signal, fwd_window
+    )
     fig_q = go.Figure()
     fig_q.add_trace(
         go.Bar(
@@ -163,7 +227,7 @@ with tab1:
 
 # ── Tab 2：全因子筛选 ─────────────────────────────────────────────────────
 with tab2:
-    st.caption("对所有已实现因子批量计算 IC/ICIR，自动筛选有效因子并展示相关性矩阵")
+    st.caption("各因子使用默认窗口批量计算 IC/ICIR，自动筛选有效因子并展示相关性矩阵")
 
     fwd_window_all = st.slider(
         "前向收益窗口（天）", 5, 60, cfg.factor.ic_forward_window, step=5, key="fwd_all"
@@ -178,25 +242,16 @@ with tab2:
         summary = []
         factor_last: dict[str, pd.Series] = {}
 
-        for name in FACTOR_NAMES:
-            factor_vals = compute_single_factor(name, close)
-            ic_list = []
-            for date, row in factor_vals.resample("ME").last().iterrows():
-                actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
-                if actual_date is None or str(actual_date) == "NaT":
-                    continue
-                f = row.dropna()
-                r = fwd_ret.loc[actual_date].reindex(f.index).dropna()
-                common = f.index.intersection(r.index)
-                if len(common) < 10:
-                    continue
-                ic_list.append(f[common].corr(r[common]))  # type: ignore[arg-type]
-            ic_s = pd.Series(ic_list).dropna()
+        for name in ALL_FACTOR_TYPES:
+            w = DEFAULT_WINDOWS.get(name, 20)
+            factor_vals = compute_factor(name, close, window=w)
+            ic_s = _calc_monthly_ic(factor_vals, fwd_ret)
             if ic_s.empty:
                 continue
+            label = name if name == "MACD" else f"{name}({w}日)"
             summary.append(
                 {
-                    "因子": name,
+                    "因子": label,
                     "IC均值": ic_s.mean(),
                     "IC标准差": ic_s.std(),
                     "ICIR": calc_icir(ic_s),
@@ -204,7 +259,7 @@ with tab2:
                     "样本月数": len(ic_s),
                 }
             )
-            factor_last[name] = factor_vals.iloc[-1].dropna()
+            factor_last[label] = factor_vals.iloc[-1].dropna()
 
         summary_df = (
             pd.DataFrame(summary).set_index("因子").sort_values("ICIR", ascending=False)
@@ -267,7 +322,7 @@ with tab2:
             zmin=-1,
             zmax=1,
             text_auto=".2f",  # type: ignore
-            aspect="auto",
+            aspect="auto",  # type: ignore[arg-type]
         )
         fig_heat.update_layout(coloraxis_colorbar_title="相关系数")
         st.plotly_chart(fig_heat, use_container_width=True)
