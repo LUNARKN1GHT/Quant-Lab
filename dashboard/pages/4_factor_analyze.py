@@ -280,7 +280,7 @@ with tab2:
                 "IC>0占比": "{:.1%}",
                 "样本月数": "{:.0f}",
             }
-        ).background_gradient(subset=["ICIR"], cmap="RdYlGn", vmin=-0.5, vmax=0.5)
+        ).bar(subset=["ICIR"], align="mid", color=["#F44336", "#4CAF50"])
         st.dataframe(styled, use_container_width=True)
 
         st.subheader("ICIR 排名")
