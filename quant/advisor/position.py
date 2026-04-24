@@ -15,8 +15,12 @@ def vol_target_scale(returns: pd.Series, cfg: Config) -> pd.Series:
     return scale
 
 
-def compute_position(close: pd.DataFrame, cfg: Config) -> pd.DataFrame:
-    """综合 Regime + 波动率目标，输出每日仓位建议"""
+def compute_position(
+    close: pd.DataFrame,
+    cfg: Config,
+    macro_score: pd.Series | None = None,
+) -> pd.DataFrame:
+    """综合 Regime + 波动率目标 + 宏观景气，输出每日仓位建议"""
     index_returns = close.mean(axis=1).pct_change()
 
     regime = detect_regime(
@@ -33,10 +37,16 @@ def compute_position(close: pd.DataFrame, cfg: Config) -> pd.DataFrame:
         Regime.BEAR.value: cfg.regime.bear_scale,
     }
     regime_scale = regime.map(scale_map)
-
     v_scale = vol_target_scale(index_returns, cfg)
 
-    position = (regime_scale * v_scale).clip(
+    # 宏观景气乘数：z-score 偏移±0.2，截取 [0.6, 1.4]
+    if macro_score is not None:
+        macro_aligned = macro_score.reindex(close.index, method="ffill")
+        macro_multiplier = (1 + 0.2 * macro_aligned.clip(-2, 2)).fillna(1.0)
+    else:
+        macro_multiplier = pd.Series(1.0, index=close.index)
+
+    position = (regime_scale * v_scale * macro_multiplier).clip(
         lower=cfg.advisor.min_position, upper=cfg.advisor.max_position
     )
 
@@ -45,6 +55,7 @@ def compute_position(close: pd.DataFrame, cfg: Config) -> pd.DataFrame:
             "regime": regime,
             "regime_scale": regime_scale,
             "vol_scale": v_scale,
+            "macro_multiplier": macro_multiplier,
             "position": position,
         }
     )
