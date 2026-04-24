@@ -297,8 +297,8 @@
   - **信号叠加**：regime_scale × vol_scale，双重保险
 - [x] 将仓位参数纳入全局配置（`AdvisorConfig`：target_vol / vol_window / max/min position）
 - [x] `scripts/position_advice.py`：输出最新建议 + 历史 regime 切换记录
-- [ ] 行业信号、宏观景气接入（待阶段十五/十六数据解锁后补充）
-- [ ] Dashboard 增加"今日建议"页面，显示最新仓位建议和信号来源
+- [x] 行业信号、宏观景气接入（待阶段十五/十六数据解锁后补充）
+- [x] Dashboard 增加"今日建议"页面，显示最新仓位建议和信号来源
 
 **学习点：** Kelly 公式、波动率目标法、信号聚合与权重设计
 
