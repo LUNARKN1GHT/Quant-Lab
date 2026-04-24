@@ -12,7 +12,7 @@ from quant.sector.loader import load_sector_close
 from quant.sector.rotation import calc_rs, calc_rs_momentum, get_suggestions
 
 st.set_page_config(page_title="行业轮动", layout="wide")
-sidebar_config()
+cfg = sidebar_config()
 st.title("🔄 行业轮动")
 
 rs_window = st.slider("RS 计算窗口（天）", 5, 60, 20, step=5)
@@ -25,12 +25,16 @@ load_btn = st.button("📥 加载行业数据", type="primary")
 @st.cache_data(show_spinner="加载申万行业数据…")
 def get_data():
     sector_close = load_sector_close()
-    benchmark = sector_close.mean(axis=1)  # 等权行业指数作基准
+    benchmark = sector_close.mean(axis=1)
     return sector_close, benchmark
 
 
 if load_btn:
-    sector_close, benchmark = get_data()
+    data = get_data()
+    st.session_state["sector_data"] = data
+
+if "sector_data" in st.session_state:
+    sector_close, benchmark = st.session_state["sector_data"]
     rs = calc_rs(sector_close, benchmark, window=rs_window)
     rs_momentum = calc_rs_momentum(rs, lookback=lookback)
     rs_latest = rs.iloc[-1]
