@@ -8,12 +8,19 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.shared import sidebar_config
+from quant.regime.detector import detect_regime
 from quant.sector.loader import load_sector_close
 from quant.sector.rotation import calc_rs, calc_rs_momentum, get_suggestions
 
 st.set_page_config(page_title="行业轮动", layout="wide")
 cfg = sidebar_config()
 st.title("🔄 行业轮动")
+
+REGIME_ICON = {"BULL": "🟢", "RANGE": "🟡", "BEAR": "🔴"}
+
+if "current_regime" in st.session_state:
+    cr = st.session_state["current_regime"]
+    st.metric("当前市场环境", f"{REGIME_ICON.get(cr, '')} {cr}")
 
 rs_window = st.slider("RS 计算窗口（天）", 5, 60, 20, step=5)
 lookback = st.slider("RS 动量回看（天）", 10, 60, 20, step=5)
@@ -32,13 +39,56 @@ def get_data():
 if load_btn:
     data = get_data()
     st.session_state["sector_data"] = data
+    sector_close, _ = data
+    regime = detect_regime(sector_close)
+    st.session_state["regime"] = regime
+    st.session_state["current_regime"] = regime.iloc[-1]
 
 if "sector_data" in st.session_state:
     sector_close, benchmark = st.session_state["sector_data"]
+    regime = st.session_state["regime"]
+    current_regime = st.session_state["current_regime"]
+
     rs = calc_rs(sector_close, benchmark, window=rs_window)
     rs_momentum = calc_rs_momentum(rs, lookback=lookback)
     rs_latest = rs.iloc[-1]
     suggestions = get_suggestions(rs_latest, rs_momentum, top_n=top_n)
+
+    # 市场环境历史
+    st.subheader("市场环境历史")
+    REGIME_COLOR = {"BULL": "#4CAF50", "RANGE": "#FF9800", "BEAR": "#F44336"}
+    regime_num = regime.map({"BULL": 1, "RANGE": 0, "BEAR": -1})
+
+    fig_regime = go.Figure()
+    fig_regime.add_trace(
+        go.Scatter(
+            x=regime.index,
+            y=regime_num,
+            mode="markers",
+            marker=dict(
+                color=[REGIME_COLOR[r] for r in regime], size=8, symbol="square"
+            ),
+            showlegend=False,
+        )
+    )
+    # 图例用空轨迹占位
+    for label, color in REGIME_COLOR.items():
+        fig_regime.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(color=color, size=10, symbol="square"),
+                name=label,
+            )
+        )
+    fig_regime.update_layout(
+        yaxis=dict(tickvals=[-1, 0, 1], ticktext=["BEAR", "RANGE", "BULL"]),
+        height=250,
+        showlegend=True,
+        margin=dict(t=20, b=20),
+    )
+    st.plotly_chart(fig_regime, width="stretch")
 
     # RS 热力图（近 12 个月月末）
     st.subheader("行业 RS 热力图（近12个月）")
