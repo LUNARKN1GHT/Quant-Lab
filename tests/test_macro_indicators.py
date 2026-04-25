@@ -81,3 +81,16 @@ def test_composite_index_unknown_col_direction_defaults_positive():
     result = composite_index(df)
     assert isinstance(result, pd.Series)
     assert len(result) == 12
+
+
+def test_calc_lag_corr_insufficient_data_returns_nan():
+    # 只有 5 个月数据，< 12 个公共点，应该全部返回 nan
+    idx = pd.date_range("2023-01-31", periods=5, freq="ME")
+    macro = pd.Series([50.0] * 5, index=idx, name="pmi")
+    daily_idx = pd.date_range("2023-01-01", periods=100, freq="B")
+    market_ret = pd.Series(
+        np.random.default_rng(0).normal(0, 0.01, 100), index=daily_idx
+    )
+
+    result = calc_lag_corr(macro, market_ret, max_lag=3)
+    assert result.isna().all()
