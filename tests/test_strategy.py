@@ -92,3 +92,33 @@ def test_compare_strategies():
     # 验证 Max Drawdown 为负
     assert result.loc["Max Drawdown", "策略A"] < 0
     assert result.loc["Max Drawdown", "策略B"] < 0
+
+
+def test_walk_forward_stack_structure():
+    from sklearn.linear_model import Ridge
+
+    from quant.strategy.ml_alpha import walk_forward_stack
+
+    np.random.seed(0)
+    X = pd.DataFrame({"f1": np.random.randn(80), "f2": np.random.randn(80)})
+    y = pd.Series(np.random.randn(80))
+
+    base_models = [Ridge(alpha=1.0), Ridge(alpha=10.0)]
+    meta_model = Ridge()
+
+    result = walk_forward_stack(
+        X,
+        y,
+        base_models=base_models,  # type: ignore
+        meta_model=meta_model,
+        train_window=40,
+        predict_window=10,
+        holdout_ratio=0.2,
+    )
+
+    assert isinstance(result, pd.Series)
+    assert len(result) == len(y)
+    # 前 train_window 期没有预测值
+    assert result.iloc[:40].isna().all()
+    # 之后应有预测值
+    assert result.iloc[40:].notna().any()
