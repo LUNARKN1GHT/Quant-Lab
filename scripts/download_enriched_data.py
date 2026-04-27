@@ -1,4 +1,5 @@
 # scripts/download_enriched_data.py
+import random
 import sys
 import time
 from datetime import datetime
@@ -14,7 +15,7 @@ from quant.data.cache import CachedFetcher
 START = datetime(2019, 1, 1)
 END = datetime.today()
 DB_PATH = "data/quant.duckdb"
-SLEEP = 1.5  # 每只股票请求间隔（秒）
+SLEEP = random.uniform(0.5, 1.5)  # 每只股票请求间隔（秒）
 
 
 def get_csi300_symbols() -> list[str]:
