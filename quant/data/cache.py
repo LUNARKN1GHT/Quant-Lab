@@ -90,6 +90,17 @@ class CachedFetcher:
                 PRIMARY KEY (symbol, report_date)
             )
         """)
+        self.connection.execute("""
+        CREATE TABLE IF NOT EXISTS fund_flow_daily (
+            symbol            VARCHAR,
+            date              DATE,
+            main_net_inflow   DOUBLE,
+            main_net_pct      DOUBLE,
+            xlarge_net_inflow DOUBLE,
+            large_net_inflow  DOUBLE,
+            PRIMARY KEY (symbol, date)
+            )
+        """)
 
     def get_price(
         self,
@@ -199,3 +210,35 @@ class CachedFetcher:
             FROM df
         """)
         return df[RETURN_COLS]
+
+    def get_fund_flow(
+        self, symbol: str, start_time: datetime, end_time: datetime
+    ) -> pd.DataFrame:
+        """获取日频资金流向：主力净流入额/占比、超大单、大单"""
+        cached = self.connection.execute(
+            """
+            SELECT date, main_net_inflow, main_net_pct,
+                xlarge_net_inflow, large_net_inflow
+            FROM fund_flow_daily
+            WHERE symbol = ? AND date >= ? AND date <= ?
+            ORDER BY date
+        """,
+            [symbol, start_time.date(), end_time.date()],
+        ).df()
+
+        if len(cached) > 0:
+            return cached.set_index("date")
+
+        from quant.data.fund_flow import fetch_fund_flow
+
+        df = fetch_fund_flow(symbol, start_time, end_time)
+        df_insert = df.copy()
+        df_insert["symbol"] = symbol
+        df_insert["date"] = df_insert.index
+        self.connection.execute("""
+            INSERT OR IGNORE INTO fund_flow_daily
+            SELECT symbol, date, main_net_inflow, main_net_pct,
+                xlarge_net_inflow, large_net_inflow
+            FROM df_insert
+        """)
+        return df
