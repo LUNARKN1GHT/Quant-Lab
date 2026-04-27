@@ -327,21 +327,21 @@
 
 **日频数据扩展（akshare 直接支持）：**
 
-- [ ] 估值数据：PE（TTM）、PB、PS、股息率（`ak.stock_a_lg_indicator`）
-- [ ] 市值数据：总市值、流通市值（用于市值因子与行业中性化）
+- [x] 估值数据：PE（TTM）、PB、总市值（`ak.stock_zh_valuation_baidu`，PS/股息率接口不可用）
+- [ ] 流通市值（circ_mv，待补充）
 - [ ] 资金流向：主力净流入、大单净额（`ak.stock_individual_fund_flow`）
 
 **财务数据扩展（季频，需对齐日频）：**
 
-- [ ] 成长类：营收同比、净利润同比、EPS 增速
-- [ ] 质量类：ROE、ROA、毛利率、净利率
-- [ ] 杠杆类：资产负债率、有息负债率
-- [ ] 现金流：经营现金流 / 净利润比（检验盈利质量）
+- [x] 成长类：营收同比、净利润同比
+- [x] 质量类：ROE、ROA、毛利率、净利率
+- [x] 杠杆类：资产负债率
+- [x] 现金流：经营现金流 / 净利润比（cfo_to_profit）
 
 **数据库 Schema 重构：**
 
-- [ ] 拆分 DuckDB 表结构：`price_daily` / `valuation_daily` / `fundamental_quarterly`
-- [ ] 实现 Point-in-Time 对齐：财报数据按实际披露日期而非报告期对齐，避免前视偏差
+- [x] 拆分 DuckDB 表结构：`price_daily` / `valuation_daily` / `fundamental_quarterly`
+- [x] 实现 Point-in-Time 对齐：用 `merge_asof` 按披露日期对齐，避免前视偏差
 - [ ] 扩展数据质量检查覆盖新增字段
 
 **学习点：** 多频率数据融合、Point-in-Time 数据库设计、财务数据的坑（重述、调整）
