@@ -342,7 +342,7 @@
 
 - [x] 拆分 DuckDB 表结构：`price_daily` / `valuation_daily` / `fundamental_quarterly`
 - [x] 实现 Point-in-Time 对齐：用 `merge_asof` 按披露日期对齐，避免前视偏差
-- [ ] 扩展数据质量检查覆盖新增字段
+- [x] 扩展数据质量检查覆盖新增字段
 
 **学习点：** 多频率数据融合、Point-in-Time 数据库设计、财务数据的坑（重述、调整）
 
