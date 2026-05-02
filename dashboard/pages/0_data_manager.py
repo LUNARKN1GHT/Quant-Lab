@@ -20,9 +20,15 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data/csi300"
 
 
 def get_data_status() -> pd.DataFrame:
+    """扫描 data/csi300/ 目录，返回每只股票的数据范围和格式信息。
+
+    格式列标注 "旧⚠️" 是提示该文件是 akshare 旧格式（中文列名），
+    增量更新后会自动转为新格式（Tushare trade_date/close）。
+    """
     rows = []
     for f in sorted(DATA_DIR.glob("*.csv")):
         try:
+            # 只读列名，不加载数据主体，避免对几百个文件做全量 IO
             header = pd.read_csv(f, nrows=0).columns.tolist()
             if "trade_date" in header:
                 df = pd.read_csv(f, usecols=["trade_date"])
@@ -104,11 +110,11 @@ if update_btn:
         progress.progress(
             i / len(symbols), text=f"[{i}/{len(symbols)}] {symbol} → {result}"
         )
+        # akshare 请求频率限制约 1 次/秒，sleep 1.1s 确保不触发限频
         time.sleep(1.1)
 
     progress.empty()
 
-    # 结果汇总
     st.success(
         f"更新完成！新增 **{counts['new']}** 只 · "
         f"更新 **{counts['updated']}** 只 · "
@@ -118,6 +124,6 @@ if update_btn:
     if fail_list:
         st.warning(f"失败股票：{', '.join(fail_list)}")
 
-    # 清除缓存，让其他页面重新加载数据
+    # 数据文件已更新，清除 Streamlit 缓存让其他页面重新加载收盘价宽表
     load_close.clear()
     st.info("数据缓存已刷新，其他页面下次访问将加载最新数据。")

@@ -1,4 +1,8 @@
-"""侧边栏 Config 面板 + 数据加载"""
+"""侧边栏 Config 面板 + 数据加载
+
+所有页面共用同一份 sidebar_config() 和 load_close()，
+保证参数修改后所有页面同步响应。
+"""
 
 import sys
 from pathlib import Path
@@ -22,7 +26,11 @@ DATA_DIR = Path(__file__).parent.parent / "data/csi300"
 
 
 def sidebar_config() -> Config:
-    """侧边栏参数面板，返回当前 Config 对象"""
+    """渲染侧边栏参数滑块，返回当前用户设置的 Config 对象。
+
+    每次滑块变动时 Streamlit 会重新执行整个页面脚本，
+    此函数重新构造 Config 并传递给下游计算函数。
+    """
     st.sidebar.subheader("市场状态")
     ma_window = st.sidebar.slider("均线窗口", 20, 250, 120, step=10)
     bull_scale = st.sidebar.slider("BULL 仓位上限", 0.5, 1.0, 1.0, step=0.05)
@@ -62,10 +70,20 @@ def sidebar_config() -> Config:
 
 @st.cache_data
 def load_close() -> pd.DataFrame:
-    """加载收盘价宽表（缓存，只加载一次）"""
+    """加载沪深300成分股收盘价宽表，结果被 Streamlit 缓存，整个会话只执行一次。
+
+    兼容两种 CSV 格式：
+    - 新格式：列名 trade_date（%Y%m%d 整数）+ close（Tushare 导出）
+    - 旧格式：列名 日期 + 收盘（akshare 导出）
+    格式检测通过读取零行 header 完成，避免加载全量数据。
+
+    Returns:
+        宽表，行为交易日，列为股票代码（文件名 stem），值为收盘价
+    """
     frames = {}
     for f in DATA_DIR.glob("*.csv"):
         try:
+            # nrows=0 只读列名，不加载数据，性能友好
             header = pd.read_csv(f, nrows=0).columns.tolist()
             if "trade_date" in header and "close" in header:
                 df = pd.read_csv(f, usecols=["trade_date", "close"])

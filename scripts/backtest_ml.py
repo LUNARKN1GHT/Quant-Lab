@@ -1,4 +1,11 @@
-"""LightGBM 截面预测回测：Walk-forward 月度调仓，对比等权基准"""
+"""ML 截面预测回测：Walk-forward 月度调仓，对比等权基准
+
+支持两种模式：
+- run()：单模型（默认 LightGBM），直接预测下期收益排序选股
+- run_stack()：Stacking 集成，多个基模型 → meta-model 组合，通常泛化性更好
+
+特征工程由 build_features() 完成，目前使用 5 个技术因子构成截面特征矩阵。
+"""
 
 import sys
 from pathlib import Path
@@ -39,7 +46,13 @@ def load_close() -> pd.DataFrame:
 
 
 def build_features(close: pd.DataFrame) -> pd.DataFrame:
-    """构建因子特征宽表，每列为一个因子，MultiIndex(date, stock)"""
+    """构建截面因子特征矩阵，供 ML 模型训练和预测使用。
+
+    每个因子先计算成 (date × stock) 宽表，再通过 stack() 转为长格式，
+    最后 concat 成 MultiIndex(date, stock) 的特征矩阵，每列为一个因子。
+
+    当前特征：短期动量(20日)、中期动量(60日)、RSI、波动率、均线偏离率
+    """
     factor_dict = {
         "mom_20": close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[0])),
         "mom_60": close.apply(lambda s: momentum(s, cfg.factor.momentum_windows[1])),
@@ -47,13 +60,18 @@ def build_features(close: pd.DataFrame) -> pd.DataFrame:
         "vol_20": close.apply(lambda s: volatility(s, 20)),
         "ma_bias_20": close.apply(lambda s: ma_bias(s, 20)),
     }
-    # 每个 DataFrame shape: (dates, stocks) → stack 成长格式
+    # 每个 DataFrame shape: (dates, stocks) → stack 转为长格式 (date, stock)
     panel = pd.concat({name: df.stack() for name, df in factor_dict.items()}, axis=1)
     panel.index.names = ["date", "stock"]
     return panel
 
 
 def run(model: RegressorMixin | None = None) -> dict:
+    """单模型 walk-forward 回测。
+
+    Args:
+        model: 回归模型，默认使用 LightGBM。传入其他 sklearn 兼容模型可直接替换。
+    """
     print("加载数据...")
     close = load_close()
     print(f"  {close.shape[1]} 只股票，{len(close)} 个交易日")
@@ -61,7 +79,8 @@ def run(model: RegressorMixin | None = None) -> dict:
     print("构建特征...")
     features = build_features(close)
 
-    # 前向收益（标签）
+    # 前向收益作为标签：t 日的标签 = t 到 t+predict_window 日的区间收益
+    # shift(-predict_window) 将收益对齐到对应的特征日期
     fwd_ret = (
         close.pct_change(cfg.backtest.predict_window)
         .shift(-cfg.backtest.predict_window)
@@ -70,7 +89,7 @@ def run(model: RegressorMixin | None = None) -> dict:
     fwd_ret.index.names = ["date", "stock"]
     fwd_ret.name = "fwd_ret"
 
-    # 合并特征与标签
+    # dropna 去掉特征或标签有缺失的样本
     dataset = features.join(fwd_ret).dropna()
     dates = dataset.index.get_level_values("date").unique().sort_values()
 
@@ -80,11 +99,12 @@ def run(model: RegressorMixin | None = None) -> dict:
         model = lgb.LGBMRegressor(n_estimators=cfg.ml.n_estimators, verbosity=-1)
 
     score_frames = []
+    # 每隔 predict_window 个交易日重训一次，模拟实盘月度再训练
     rebalance_dates = dates[cfg.backtest.train_window :: cfg.backtest.predict_window]
 
     print(f"Walk-forward 训练（共 {len(rebalance_dates)} 期）...")
     for i, t in enumerate(rebalance_dates, 1):
-        # 训练集：t 之前 TRAIN_DAYS 个交易日
+        # 训练集：t 之前最近 train_window 个交易日的历史数据
         train_dates = dates[dates < t][-cfg.backtest.train_window :]
         if len(train_dates) < cfg.backtest.train_window // 2:
             continue
@@ -92,11 +112,12 @@ def run(model: RegressorMixin | None = None) -> dict:
         X_train = train_data.drop(columns="fwd_ret")
         y_train = train_data["fwd_ret"]
 
-        # 预测集：当前截面（t 日所有股票）
+        # 预测集：t 日截面（所有股票当日因子值）
         if t not in dataset.index.get_level_values("date"):
             continue
         X_pred = dataset.loc[t].drop(columns="fwd_ret")
 
+        # clone 确保每轮使用全新未训练的模型实例
         fold_model = clone(model)
         fold_model.fit(X_train, y_train)
         preds = pd.Series(fold_model.predict(X_pred), index=X_pred.index, name=t)
@@ -187,6 +208,19 @@ def run_stack(
     meta_model: RegressorMixin,
     holdout_ratio: float = cfg.ml.holdout_ratio,
 ) -> dict:
+    """Stacking 集成 + walk-forward 回测。
+
+    每个调仓期内：
+    1. 训练集切分为 train1（前 1-holdout_ratio）和 holdout（后 holdout_ratio）
+    2. 各基模型在 train1 上训练，预测 holdout → 生成元特征训练集
+    3. 各基模型在全训练集重训，预测当期截面 → 生成元特征预测集
+    4. meta_model 学习如何加权组合基模型，输出最终预测值
+
+    Args:
+        base_models: 基模型列表（如 LightGBM、Ridge、RandomForest）
+        meta_model: 元模型，学习如何组合基模型（通常用简单线性模型）
+        holdout_ratio: 训练集中留出生成元特征的比例，默认 0.2
+    """
 
     print("加载数据...")
     close = load_close()

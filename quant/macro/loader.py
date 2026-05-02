@@ -1,4 +1,8 @@
-"""akshare 拉取宏观数据加载"""
+"""宏观数据加载器：从 akshare 拉取并本地 CSV 缓存
+
+data/macro/ 目录下每个指标存储为独立 CSV，避免重复调用 akshare API。
+no_proxy 设置是为了解决部分环境下 akshare 请求被代理拦截的问题。
+"""
 
 import os
 from pathlib import Path
@@ -6,6 +10,7 @@ from pathlib import Path
 import akshare as ak
 import pandas as pd
 
+# 部分环境下系统代理会拦截 akshare 的国内 HTTP 请求，设置 no_proxy 绕过
 os.environ["no_proxy"] = "*"
 
 MACRO_DIR = Path(__file__).parent.parent.parent / "data/macro"
@@ -13,6 +18,7 @@ MACRO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_or_fetch(name: str, fetch_fn) -> pd.Series:
+    """通用缓存加载器：CSV 存在则直接读取，否则调用 fetch_fn 拉取并保存。"""
     path = MACRO_DIR / f"{name}.csv"
     if path.exists():
         df = pd.read_csv(path, index_col=0, parse_dates=True)

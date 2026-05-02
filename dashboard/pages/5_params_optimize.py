@@ -57,12 +57,22 @@ run_btn = st.button("🔍 运行网格搜索", type="primary")
 
 @st.cache_data(show_spinner="网格搜索中…")
 def grid_search(factor_name: str, windows: tuple, fwd_window: int, is_ratio: float):
+    """对多个窗口参数做网格搜索，比较样本内（IS）和样本外（OOS）的 ICIR。
+
+    IS/OOS 拆分原则：前 is_ratio 比例为 IS，后 1-is_ratio 为 OOS。
+    IS ICIR 高但 OOS ICIR 低说明过拟合；两者都高且接近才是稳健参数。
+
+    Args:
+        windows: 待搜索的窗口列表（tuple 以支持 st.cache_data 哈希）
+        is_ratio: 样本内比例，默认 0.6（6:4 拆分）
+    """
     import pandas as pd
 
     close = load_close()
     builder = FACTOR_BUILDERS[factor_name]
     fwd_ret = close.pct_change(fwd_window).shift(-fwd_window)
 
+    # 时序拆分：严格按时间先后，避免未来数据泄漏
     n = len(close)
     split = int(n * is_ratio)
     close_is = close.iloc[:split]
@@ -71,6 +81,7 @@ def grid_search(factor_name: str, windows: tuple, fwd_window: int, is_ratio: flo
     fwd_oos = fwd_ret.iloc[split:]
 
     def calc_monthly_ic(factor_vals, fwd):
+        """计算月度 IC 序列（内部辅助函数）"""
         ic_list = []
         for date, row in factor_vals.resample("ME").last().iterrows():
             actual = fwd.index.asof(date)
@@ -93,6 +104,7 @@ def grid_search(factor_name: str, windows: tuple, fwd_window: int, is_ratio: flo
         results.append(
             {
                 "window": w,
+                # IC 序列少于 3 个月时 ICIR 不可信，置为 NaN
                 "IS_ICIR": calc_icir(ic_is) if len(ic_is) > 3 else np.nan,
                 "OOS_ICIR": calc_icir(ic_oos) if len(ic_oos) > 3 else np.nan,
                 "IS_IC均值": ic_is.mean() if len(ic_is) > 0 else np.nan,

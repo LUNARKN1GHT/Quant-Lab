@@ -85,8 +85,15 @@ def compute_factor(
 
 
 def _calc_monthly_ic(factor_vals: pd.DataFrame, fwd_ret: pd.DataFrame) -> pd.Series:
+    """按月计算截面 IC（因子值与下期收益的 Pearson 相关）。
+
+    每月取最后一个交易日的因子截面，对应的前向收益用 asof 找最近的实际日期，
+    避免月末恰好非交易日时找不到数据。
+    少于 10 只股票有公共数据时跳过（样本太小相关性不可信）。
+    """
     ic_list = []
     for date, row in factor_vals.resample("ME").last().iterrows():
+        # asof 找 <= date 的最近实际交易日，处理月末为非交易日的情况
         actual_date = fwd_ret.index.asof(date)  # type: ignore[arg-type]
         if actual_date is None or str(actual_date) == "NaT":
             continue
@@ -152,6 +159,11 @@ with tab1:
         fwd_window: int,
         n_groups: int = 5,
     ) -> dict[str, float]:
+        """按因子值五分位分层，计算各层的平均前向收益（历史月度均值）。
+
+        Q1 = 因子值最低组，Q5 = 最高组。
+        若因子有效，Q1~Q5 应呈单调递增（多头因子）或单调递减（空头因子）。
+        """
         close = load_close()
         factor_vals = compute_factor(
             factor_type, close, window, macd_fast, macd_slow, macd_signal
@@ -166,6 +178,7 @@ with tab1:
             f = row.dropna()
             r = fwd_ret.loc[actual_date].reindex(f.index).dropna()
             common = f.index.intersection(r.index)
+            # 至少需要 n_groups*2 只股票，保证每组有足够样本
             if len(common) < n_groups * 2:
                 continue
             labels = pd.qcut(

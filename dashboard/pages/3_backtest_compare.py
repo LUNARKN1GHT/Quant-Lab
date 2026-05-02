@@ -73,7 +73,12 @@ def compute_factor_scores(
     macd_slow: int = 26,
     macd_signal: int = 9,
 ) -> pd.DataFrame:
-    market = close.mean(axis=1)
+    """将因子名称分发到对应的计算函数，返回全股票因子值宽表。
+
+    特质波动率需要市场等权收益率作为基准（CAPM 残差），
+    其他因子只需单只股票收盘价序列。
+    """
+    market = close.mean(axis=1)  # 等权指数，用于特质波动率的 beta 估计
     if name == "动量":
         return close.apply(lambda s: momentum(s, window))
     if name == "RSI":
@@ -135,13 +140,21 @@ def run_factor_backtest(
     commission: float,
     rebalance_days: int = 20,
 ) -> tuple[pd.Series, pd.Series, str]:
+    """传统因子回测：每隔 rebalance_days 天重新选股，非调仓日持仓不变。
+
+    Returns:
+        (strategy_ret, benchmark_ret, label)
+        benchmark 为成分股等权收益率，用于对比超额
+    """
     close = load_close()
     scores = compute_factor_scores(
         factor_type, close, factor_window, macd_fast, macd_slow, macd_signal
     )
     daily_ret = close.pct_change()
+    # 每隔 rebalance_days 取一个调仓日（等间隔调仓）
     rebalance_dates = scores.index[::rebalance_days]
 
+    # 初始化全零持仓，调仓日写入新权重，其余日期通过 ffill 保持上期权重
     positions = pd.DataFrame(0.0, index=scores.index, columns=close.columns)
     for t in rebalance_dates:
         row = scores.loc[t].dropna()
@@ -154,6 +167,7 @@ def run_factor_backtest(
     strategy_ret = backtest(positions, daily_ret, commission_rate=commission)
     benchmark_ret = daily_ret.mean(axis=1)
 
+    # 从第一个有效日期开始，过滤掉因子窗口预热期的 NaN
     start = strategy_ret.first_valid_index()
     label = f"{factor_type}({factor_window}日)"
     return (
@@ -171,10 +185,19 @@ def run_ml_backtest(
     train_window: int,
     commission: float,
 ) -> tuple[pd.Series, pd.Series, str]:
+    """ML 模型回测：滚动训练预测下期收益，按预测值选股。
+
+    流程：
+    1. 用多因子合成特征矩阵（build_features）
+    2. 滚动 walk-forward：每隔 predict_window 天重训一次模型
+    3. 模型预测每只股票下期收益，按预测值排序选 Top-N
+    4. 向量化回测计算策略收益
+    """
     from sklearn.base import clone
 
     close = load_close()
     features = build_features(close)
+    # 将收盘价转为前向收益（下期 predict_window 日的累积收益），stack 成长表
     fwd_ret = (
         close.pct_change(cfg.backtest.predict_window)
         .shift(-cfg.backtest.predict_window)
@@ -187,9 +210,11 @@ def run_ml_backtest(
 
     model = clone(MODEL_MAP[model_name])
     score_frames = []
+    # 每隔 predict_window 天重训一次，模拟实盘中的定期再训练
     rebalance_dates = dates[train_window :: cfg.backtest.predict_window]
 
     for t in rebalance_dates:
+        # 取最近 train_window 个日期的历史数据作为训练集
         train_dates = dates[dates < t][-train_window:]
         if len(train_dates) < train_window // 2:
             continue
@@ -202,6 +227,7 @@ def run_ml_backtest(
         preds = pd.Series(fold_model.predict(X_pred), index=X_pred.index, name=t)
         score_frames.append(preds)
 
+    # 将每期预测结果拼成日期×股票的宽表
     scores_wide = pd.DataFrame(score_frames)
     scores_wide.index = pd.DatetimeIndex(scores_wide.index)
     scores_wide = scores_wide.reindex(columns=close.columns)
@@ -213,6 +239,7 @@ def run_ml_backtest(
         ),
         axis=1,
     )
+    # reindex + ffill：调仓日之间持仓保持不变
     positions = positions.reindex(close.index).ffill().fillna(0.0)
     strategy_ret = backtest(positions, daily_returns, commission_rate=commission)
     benchmark_ret = daily_returns.mean(axis=1)
