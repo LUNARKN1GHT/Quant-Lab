@@ -8,6 +8,7 @@ dependencies = [
     "akshare>=1.18.55",
     "duckdb>=1.5.2",
     "lightgbm>=4.6.0",
+    "matplotlib>=3.10.9",
     "numpy>=2.4.4",
     "pandas>=3.0.2",
     "plotly>=6.7.0",
