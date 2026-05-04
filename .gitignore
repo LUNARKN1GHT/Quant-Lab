@@ -224,3 +224,6 @@ CLAUDE.md
 # 报告输出文件夹
 /reports/
 /output
+
+# 个人持仓情况
+configs/fund_transactions.yaml
