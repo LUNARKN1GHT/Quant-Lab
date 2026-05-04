@@ -40,7 +40,7 @@ with tab1:
     selected = st.selectbox("选择因子", list(factor_imgs.keys()))
     img_path = IMG_DIR / factor_imgs[selected]
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
     else:
         st.warning("图表文件不存在，请先运行对应研究脚本。")
 
@@ -55,7 +55,7 @@ with tab1:
 with tab2:
     img_path = IMG_DIR / "factor_deep_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
     else:
         st.warning("请先运行 scripts/research_factor_analysis.py")
 
@@ -97,7 +97,7 @@ with tab2:
         yaxis_title="ICIR",
         hovermode="x unified",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # ── Tab 3：市场环境分解 ────────────────────────────────────────────────────────
 with tab3:
@@ -130,7 +130,7 @@ with tab3:
         fig1.update_layout(
             title="分市场环境 IC 均值", barmode="group", yaxis_title="IC 均值"
         )
-        st.plotly_chart(fig1, use_container_width=True)
+        st.plotly_chart(fig1, width="stretch")
 
     with col_b:
         st.markdown("""

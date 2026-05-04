@@ -38,14 +38,14 @@ with tab1:
                 subset=["eg_pvalue"] if "eg_pvalue" in df_pairs.columns else [],
                 cmap="RdYlGn_r",
             ),
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.warning("请先运行 scripts/find_cointegrated_pairs.py")
 
     img_path = IMG_DIR / "cointegration_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
 
     with st.expander("方法论：EG vs Johansen"):
         st.markdown("""
@@ -68,7 +68,7 @@ with tab2:
 
     img_path = IMG_DIR / "ou_process_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
 
     st.markdown("""
     **OU 过程参数解读：**
@@ -90,7 +90,7 @@ with tab3:
 
     img_path = IMG_DIR / "kalman_hedge_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
 
     with st.expander("Kalman Filter 状态空间模型"):
         st.markdown(r"""
@@ -115,7 +115,7 @@ with tab4:
 
     img_path = IMG_DIR / "pca_basket_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
 
     st.markdown("""
     **核心发现：A 股行业内特质残差具有动量特性**
@@ -140,7 +140,7 @@ with tab5:
 
     img_path = IMG_DIR / "market_neutral_analysis.png"
     if img_path.exists():
-        st.image(str(img_path), use_container_width=True)
+        st.image(str(img_path), width="stretch")
 
     st.markdown("""
     **Beta 中性化效果验证：**
