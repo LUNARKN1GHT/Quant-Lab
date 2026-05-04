@@ -117,6 +117,11 @@
 
 - [x] 参数调优页：网格搜索结果柱状图，IS/OOS ICIR 对比 + 推荐参数建议
 
+**Dashboard 扩展（第四批）：**
+
+- [x] 自主因子研究页（`8_factor_research_adv.py`）：因子分层回测图、IC 衰减曲线、分市场环境 IC 对比
+- [x] 统计套利研究页（`9_stat_arb.py`）：协整对筛选、OU 过程半衰期、Kalman Filter 对比、PCA 套利、市场中性组合
+
 ---
 
 ## 阶段八：测试质量（Testing & Quality）

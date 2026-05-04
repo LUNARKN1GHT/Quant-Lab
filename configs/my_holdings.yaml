@@ -1,0 +1,12 @@
+# 基金持仓配置
+
+holdings:
+  - symbol: "009610"
+    name: "基金A" # 填入真实名称
+    shares: 10000.00 # 持有份额
+    cost_nav: 1.2500 # 平均成本净值
+
+  - symbol: "163415"
+    name: "基金B"
+    shares: 5000.00
+    cost_nav: 1.0800
