@@ -12,6 +12,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.shared import sidebar_config
+from quant.factor.bollinger import bollinger_position
+from quant.factor.ma_bias import ma_bias
+from quant.factor.momentum import momentum
+from quant.factor.rsi import rsi
 from quant.fund.ledger import (
     compute_holdings,
     load_transactions,
@@ -20,6 +24,7 @@ from quant.fund.ledger import (
     transaction_returns,
 )
 from quant.fund.portfolio import load_nav_matrix
+from quant.fund.watchlist import load_watchlist, save_watchlist
 
 st.set_page_config(page_title="我的持仓", layout="wide")
 sidebar_config()
@@ -28,15 +33,20 @@ st.title("💼 我的基金持仓")
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "quant.duckdb"
 
 
-# ── 交易流水（session state 做缓存，避免每次操作重读）────────────────────────
+# ── Session state 初始化 ──────────────────────────────────────────────────────
 if "txns" not in st.session_state:
     st.session_state.txns = load_transactions()
-
-# 每次脚本运行都强制恢复 date 列 dtype（防止 Arrow 序列化破坏）
 txns = st.session_state.txns
 if not txns.empty and "date" in txns.columns:
     txns["date"] = pd.to_datetime(txns["date"])
 st.session_state.txns = txns
+
+if "watchlist" not in st.session_state:
+    st.session_state.watchlist = load_watchlist()
+wl = st.session_state.watchlist
+if not wl.empty and "added_date" in wl.columns:
+    wl["added_date"] = pd.to_datetime(wl["added_date"])
+st.session_state.watchlist = wl
 
 
 def reload():
@@ -76,7 +86,10 @@ with col_refresh:
                     PRIMARY KEY (symbol, date)
                 )
             """)
-            for sym in symbols:
+            all_symbols = list(
+                set(symbols) | set(wl["symbol"].tolist() if not wl.empty else [])
+            )
+            for sym in all_symbols:
                 try:
                     df_nav = ak.fund_open_fund_info_em(
                         symbol=sym, indicator="单位净值走势", period="成立来"
@@ -107,17 +120,24 @@ with col_refresh:
 
 
 nav = get_nav(tuple(sorted(symbols)))
+holdings = compute_holdings(txns)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-tab_overview, tab_chart, tab_txn, tab_ret = st.tabs(
-    ["📊 持仓总览", "📈 净值走势", "📝 交易记录", "💹 收益分析"]
+tab_overview, tab_chart, tab_txn, tab_ret, tab_watch, tab_advice = st.tabs(
+    [
+        "📊 持仓总览",
+        "📈 净值走势",
+        "📝 交易记录",
+        "💹 收益分析",
+        "📋 自选追踪",
+        "📡 投资建议",
+    ]
 )
 
 
 # ── Tab 1：持仓总览 ────────────────────────────────────────────────────────────
 with tab_overview:
-    holdings = compute_holdings(txns)
 
     if holdings.empty:
         st.info("暂无持仓，请在「交易记录」页添加买入记录。")
@@ -418,3 +438,314 @@ with tab_ret:
                 width="stretch",
                 hide_index=True,
             )
+
+# ── Tab 5：自选追踪 ────────────────────────────────────────────────────────────
+with tab_watch:
+    st.subheader("添加自选基金")
+    with st.form("add_watch", clear_on_submit=True):
+        wc1, wc2 = st.columns(2)
+        w_sym = wc1.text_input("基金代码", placeholder="009610")
+        w_name = wc2.text_input("基金名称", placeholder="xxx基金")
+        w_note = st.text_input("备注（可选）", placeholder="关注原因...")
+        if st.form_submit_button("➕ 加入自选", type="primary"):
+            if not w_sym or not w_name:
+                st.error("代码和名称不能为空")
+            elif not wl.empty and w_sym in wl["symbol"].values:
+                st.warning(f"{w_sym} 已在自选列表中")
+            else:
+                new_wl = pd.DataFrame(
+                    [
+                        {
+                            "symbol": w_sym.strip(),
+                            "name": w_name.strip(),
+                            "added_date": pd.Timestamp.today(),
+                            "note": w_note,
+                        }
+                    ]
+                )
+                st.session_state.watchlist = pd.concat([wl, new_wl], ignore_index=True)
+                save_watchlist(st.session_state.watchlist)
+                st.success(f"已添加 {w_name} 到自选")
+                st.cache_data.clear()
+                st.rerun()
+
+    st.divider()
+
+    wl = st.session_state.watchlist
+    if wl.empty:
+        st.info("自选列表为空，请添加感兴趣的基金。")
+    else:
+        # ── 自选列表 + 删除 ──
+        st.subheader("自选列表")
+        wl_display = wl.copy()
+        wl_display["added_date"] = [
+            v.strftime("%Y-%m-%d") if hasattr(v, "strftime") else str(v)[:10]
+            for v in wl_display["added_date"]
+        ]
+        wl_display = wl_display.rename(
+            columns={
+                "symbol": "代码",
+                "name": "名称",
+                "added_date": "加入日期",
+                "note": "备注",
+            }
+        )
+        st.dataframe(wl_display, hide_index=True, width="stretch")
+
+        del_sym = st.selectbox(
+            "删除自选",
+            options=wl["symbol"].tolist(),
+            format_func=lambda s: f"{s} {wl.set_index('symbol').loc[s, 'name']}",
+        )
+        if st.button("🗑️ 移出自选", type="secondary"):
+            st.session_state.watchlist = wl[wl["symbol"] != del_sym].reset_index(
+                drop=True
+            )
+            save_watchlist(st.session_state.watchlist)
+            st.rerun()
+
+        st.divider()
+
+        # ── 净值走势对比 ──
+        st.subheader("净值走势")
+        wl_syms = wl["symbol"].tolist()
+        wl_names = wl.set_index("symbol")["name"].to_dict()
+        wl_nav = get_nav(tuple(sorted(wl_syms)))
+
+        if wl_nav.empty:
+            st.info("请点击「刷新净值数据」按钮下载自选基金净值。")
+        else:
+            wl_period = st.selectbox(
+                "时间范围",
+                ["成立来", "近3年", "近1年", "近6月", "近3月"],
+                key="wl_period",
+            )
+            wl_norm = st.checkbox("归一化", value=True, key="wl_norm")
+            n_map = {
+                "近3月": 63,
+                "近6月": 126,
+                "近1年": 252,
+                "近3年": 756,
+                "成立来": 99999,
+            }
+
+            fig_wl = go.Figure()
+            for sym in wl_syms:
+                if sym not in wl_nav.columns:
+                    continue
+                s = wl_nav[sym].dropna().tail(n_map[wl_period])
+                y = s / s.iloc[0] if wl_norm else s
+                fig_wl.add_trace(
+                    go.Scatter(
+                        x=s.index,
+                        y=y.values,
+                        name=wl_names.get(sym, sym),
+                        mode="lines",
+                        line=dict(width=2),
+                    )
+                )
+            fig_wl.add_hline(y=1 if wl_norm else 0, line_dash="dash", line_color="gray")
+            fig_wl.update_layout(
+                hovermode="x unified",
+                yaxis_title="归一化净值" if wl_norm else "单位净值",
+            )
+            st.plotly_chart(fig_wl, width="stretch")
+
+            # ── 因子信号扫描 ──
+            st.subheader("因子信号扫描")
+            st.caption("基于 NAV 序列的技术面信号，仅供参考")
+
+            signal_rows = []
+            for sym in wl_syms:
+                if sym not in wl_nav.columns:
+                    continue
+                s = wl_nav[sym].dropna()
+                if len(s) < 30:
+                    continue
+                mom_val = momentum(s, 20).iloc[-1]
+                rsi_val = rsi(s, 14).iloc[-1]
+                bias_val = ma_bias(s, 20).iloc[-1]
+                bb_val = bollinger_position(s, 20).iloc[-1]
+
+                score = sum(
+                    [
+                        mom_val < 0,
+                        rsi_val < 40,
+                        bias_val < -0.03,
+                        bb_val < 0.3,
+                    ]
+                )
+                if score >= 3:
+                    sig = "🟢 关注买入"
+                elif score >= 2:
+                    sig = "🟡 继续观察"
+                else:
+                    sig = "⚪ 暂无信号"
+
+                signal_rows.append(
+                    {
+                        "名称": wl_names.get(sym, sym),
+                        "代码": sym,
+                        "动量(20日)": mom_val,
+                        "RSI(14)": rsi_val,
+                        "均线偏离": bias_val,
+                        "布林位置": bb_val,
+                        "综合评分": f"{score}/4",
+                        "信号": sig,
+                    }
+                )
+
+            if signal_rows:
+                sig_df = pd.DataFrame(signal_rows)
+                st.dataframe(
+                    sig_df.style.format(
+                        {
+                            "动量(20日)": "{:+.2%}",
+                            "RSI(14)": "{:.1f}",
+                            "均线偏离": "{:+.2%}",
+                            "布林位置": "{:.2f}",
+                        }
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                )
+            else:
+                st.info("净值数据不足（需 ≥30 个交易日）")
+
+
+# ── Tab 6：投资建议 ────────────────────────────────────────────────────────────
+with tab_advice:
+    if nav.empty or holdings.empty:
+        st.info("需要持仓和净值数据才能生成建议。")
+    else:
+        # ── 因子信号（持仓基金）──
+        st.subheader("持仓基金因子信号")
+        st.caption("基于持仓基金 NAV 走势的技术面扫描")
+
+        holding_signals = []
+        for _, h in holdings.iterrows():
+            sym = h["symbol"]
+            if sym not in nav.columns:
+                continue
+            s = nav[sym].dropna()
+            if len(s) < 30:
+                continue
+            mom_val = momentum(s, 20).iloc[-1]
+            rsi_val = rsi(s, 14).iloc[-1]
+            bias_val = ma_bias(s, 20).iloc[-1]
+            bb_val = bollinger_position(s, 20).iloc[-1]
+
+            score = sum(
+                [
+                    mom_val < 0,
+                    rsi_val < 40,
+                    bias_val < -0.03,
+                    bb_val < 0.3,
+                ]
+            )
+            if score >= 3:
+                sig = "🟢 可考虑加仓"
+            elif score == 2:
+                sig = "🟡 持有观察"
+            elif score <= 1:
+                sig = "🔴 注意风险"
+            else:
+                sig = "⚪ 持有"
+
+            holding_signals.append(
+                {
+                    "名称": h["name"],
+                    "代码": sym,
+                    "动量(20日)": mom_val,
+                    "RSI(14)": rsi_val,
+                    "均线偏离": bias_val,
+                    "布林位置": bb_val,
+                    "评分": f"{score}/4",
+                    "建议": sig,
+                }
+            )
+
+        if holding_signals:
+            hs_df = pd.DataFrame(holding_signals)
+            st.dataframe(
+                hs_df.style.format(
+                    {
+                        "动量(20日)": "{:+.2%}",
+                        "RSI(14)": "{:.1f}",
+                        "均线偏离": "{:+.2%}",
+                        "布林位置": "{:.2f}",
+                    }
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+
+        st.divider()
+
+        # ── 风险预警 ──
+        st.subheader("风险预警")
+        warnings_found = False
+
+        # 需要 df_pos（持仓总览中的数据），重新计算
+        pos_rows = []
+        for _, h in holdings.iterrows():
+            sym = h["symbol"]
+            if sym not in nav.columns:
+                continue
+            latest = nav[sym].dropna().iloc[-1]
+            cost_val = h["shares"] * h["avg_cost_nav"]
+            mkt_val = h["shares"] * latest
+            ret = latest / h["avg_cost_nav"] - 1
+            pos_rows.append(
+                {
+                    "name": h["name"],
+                    "symbol": sym,
+                    "cost": cost_val,
+                    "mkt": mkt_val,
+                    "ret": ret,
+                }
+            )
+
+        if pos_rows:
+            pos_df = pd.DataFrame(pos_rows)
+            total_mkt = pos_df["mkt"].sum()
+
+            for _, p in pos_df.iterrows():
+                weight = p["mkt"] / total_mkt if total_mkt > 0 else 0
+
+                # 集中度预警
+                if weight > 0.5:
+                    st.warning(
+                        f"⚠️ **{p['name']}** 仓位占比 {weight:.1%}，集中度过高，建议分散"
+                    )
+                    warnings_found = True
+
+                # 亏损预警
+                if p["ret"] < -0.10:
+                    st.error(
+                        f"🔴 **{p['name']}** 浮亏 {p['ret']:.1%}，已超 -10%，建议复盘止损策略"
+                    )
+                    warnings_found = True
+                elif p["ret"] < -0.05:
+                    st.warning(f"⚠️ **{p['name']}** 浮亏 {p['ret']:.1%}，请持续关注")
+                    warnings_found = True
+
+            # 检查长期持有但亏损（结合交易记录）
+            if not txns.empty:
+                buys = txns[txns["type"] == "buy"]
+                today = pd.Timestamp.today()
+                for _, b in buys.iterrows():
+                    hold_days = (today - b["date"]).days
+                    sym = b["symbol"]
+                    if sym not in nav.columns:
+                        continue
+                    latest_nav_val = nav[sym].dropna().iloc[-1]
+                    ret_b = latest_nav_val / b["nav"] - 1
+                    if hold_days > 180 and ret_b < 0:
+                        st.warning(
+                            f"⚠️ **{b['name']}** 已持有 {hold_days} 天，仍亏损 {ret_b:.1%}，建议重新评估"
+                        )
+                        warnings_found = True
+
+        if not warnings_found:
+            st.success("✅ 当前持仓无明显风险信号")
