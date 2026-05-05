@@ -9,21 +9,22 @@ TRANSACTIONS_PATH = Path("configs/fund_transactions.yaml")
 
 
 def load_transactions() -> pd.DataFrame:
+    empty = pd.DataFrame(
+        columns=["id", "symbol", "name", "date", "type", "shares", "nav", "note"]
+    )
     if not TRANSACTIONS_PATH.exists():
-        return pd.DataFrame(
-            columns=["id", "symbol", "name", "date", "type", "shares", "nav", "note"]
-        )
-    with open(TRANSACTIONS_PATH) as f:
-        data = yaml.safe_load(f) or {}
+        return empty
+    try:
+        with open(TRANSACTIONS_PATH) as f:
+            data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        raise RuntimeError(f"交易流水文件损坏，请检查 {TRANSACTIONS_PATH}: {e}") from e
     txns = data.get("transactions", [])
     if not txns:
-        return pd.DataFrame(
-            columns=["id", "symbol", "name", "date", "type", "shares", "nav", "note"]
-        )
+        return empty
     df = pd.DataFrame(txns)
     df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
-    return df
+    return df.sort_values("date").reset_index(drop=True)
 
 
 def save_transactions(df) -> None:

@@ -22,14 +22,17 @@ def fetch_valuation(
 
     frames = {}
     for col, indicator in indicators.items():
-        df = ak.stock_zh_valuation_baidu(
-            symbol=symbol, indicator=indicator, period="全部"
-        )
+        try:
+            df = ak.stock_zh_valuation_baidu(
+                symbol=symbol, indicator=indicator, period="全部"
+            )
+        except Exception as e:
+            raise RuntimeError(f"拉取 {symbol} 估值数据失败 ({indicator}) : {e}") from e
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date").rename(columns={"value": col})
         frames[col] = df[col]
 
     # 三列按日期对齐后合并，sort_index 确保时序正确
     result: pd.DataFrame = pd.DataFrame(frames).sort_index()
-    result = result.loc[pd.Timestamp(start_time) : pd.Timestamp(end_time)]
-    return result
+
+    return result.loc[pd.Timestamp(start_time) : pd.Timestamp(end_time)]

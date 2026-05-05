@@ -9,13 +9,18 @@ WATCHLIST_PATH = Path("configs/fund_watchlist.yaml")
 
 
 def load_watchlist() -> pd.DataFrame:
+    empty = pd.DataFrame(columns=["symbol", "name", "added_date", "note"])
+
     if not WATCHLIST_PATH.exists():
-        return pd.DataFrame(columns=["symbol", "name", "added_date", "note"])
-    with open(WATCHLIST_PATH) as f:
-        data = yaml.safe_load(f) or {}
+        return empty
+    try:
+        with open(WATCHLIST_PATH) as f:
+            data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        raise RuntimeError(f"自选列表文件损坏，请检查 {WATCHLIST_PATH}: {e}") from e
     items = data.get("watchlist", [])
     if not items:
-        return pd.DataFrame(columns=["symbol", "name", "added_date", "note"])
+        return empty
     df = pd.DataFrame(items)
     df["added_date"] = pd.to_datetime(df["added_date"])
     return df

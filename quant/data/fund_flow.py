@@ -28,7 +28,10 @@ def fetch_fund_flow(
     akshare 一次返回全部历史，本函数最后按时间范围截取目标区间。
     """
     market = _get_market(symbol)
-    df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+    try:
+        df = ak.stock_individual_fund_flow(stock=symbol, market=market)
+    except Exception as e:
+        raise RuntimeError(f"拉取 {symbol} 资金刘翔数据失败: {e}") from e
     df = df[list(FUND_FLOW_COLS.keys())].rename(columns=FUND_FLOW_COLS)
     df["date"] = pd.to_datetime(df["date"])
     df = df.set_index("date").sort_index()

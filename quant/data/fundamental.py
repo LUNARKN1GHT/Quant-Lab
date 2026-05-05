@@ -38,13 +38,17 @@ def _estimate_disclose_date(report_date: pd.Timestamp) -> pd.Timestamp:
 
 def fetch_fundamental(symbol: str, start_year: str = "2015") -> pd.DataFrame:
     """获取季频财务数据，新增 disclose_date 列（估算）用于 PIT 对齐"""
-    df = ak.stock_financial_analysis_indicator(symbol=symbol, start_year=start_year)
+    try:
+        df = ak.stock_financial_analysis_indicator(symbol=symbol, start_year=start_year)
+    except Exception as e:
+        raise RuntimeError(f"抓取季频数据超时: {symbol}: {e}") from e
+
     df = df[list(FUNDAMENTAL_COLS.keys())].rename(columns=FUNDAMENTAL_COLS)
     df["report_date"] = pd.to_datetime(df["report_date"])
     # 估算每期财报的最晚可用日期，后续因子计算以此为准
     df["disclose_date"] = df["report_date"].apply(_estimate_disclose_date)
-    df = df.sort_values("report_date").reset_index(drop=True)
-    return df
+
+    return df.sort_values("report_date").reset_index(drop=True)
 
 
 def align_fundamental_to_daily(
