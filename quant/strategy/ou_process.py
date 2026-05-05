@@ -31,7 +31,7 @@ def fit_ou(spread: pd.Series) -> OUParams:
     Returns:
         OUParams 含 θ/μ/σ 和半衰期
     """
-    x = spread.values
+    x = spread.to_numpy()
     x_lag = x[:-1]
     x_now = x[1:]
 
@@ -80,6 +80,8 @@ def ou_zscore(
     Returns:
         z-score 序列
     """
+    mu: float | pd.Series
+    sigma: float | pd.Series
     if window:
         mu = spread.rolling(window).mean()
         sigma = spread.rolling(window).std()

@@ -36,9 +36,9 @@ def risk_metrics(returns: pd.Series, annual: int = 252) -> dict:
         "Sortino": sortino,
         "最大回撤": dd.min(),
         "Calmar": ann_ret / abs(dd.min()) if dd.min() != 0 else 0.0,
-        "近1月": (1 + r.tail(21)).prod() - 1,
-        "近3月": (1 + r.tail(63)).prod() - 1,
-        "近1年": (1 + r.tail(252)).prod() - 1,
+        "近1月": np.float64((1 + r.tail(21)).prod()) - 1,  # type: ignore
+        "近3月": np.float64((1 + r.tail(63)).prod()) - 1,  # type: ignore
+        "近1年": np.float64((1 + r.tail(252)).prod()) - 1,  # type: ignore
     }
 
 
@@ -77,8 +77,8 @@ def style_attribution(returns: pd.Series, benchmarks: pd.DataFrame) -> dict:
     common = returns.index.intersection(benchmarks.index)
     if len(common) < 60:
         return {}
-    y = returns.loc[common].values
-    X = benchmarks.loc[common].values
+    y = returns.loc[common].to_numpy()
+    X = benchmarks.loc[common].to_numpy()
     X = np.column_stack([X, np.ones(len(X))])  # 加截距
     coef, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
     r2 = 1 - np.var(y - X @ coef) / np.var(y)

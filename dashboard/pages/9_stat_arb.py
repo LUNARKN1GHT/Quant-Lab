@@ -52,9 +52,9 @@ with tab1:
         | 方法 | 原理 | 优点 | 缺点 |
         |------|------|------|------|
         | Engle-Granger | OLS 残差 ADF 检验 | 简单直观 | 只能检测一个协整关系 |
-        | Johansen | VAR 模型特征根 | 可检测多个协整关系，方向对称 | 参数敏感，小样本偏差 |
+        | Johansen | VAR模型特征根 | 可检测多个协整关系，方向对称 | 参数敏感 |
 
-        **实践建议**：两者同时通过（EG p<0.05 且 Johansen n_cointegration≥1）才选为候选对。
+        **实践建议**：两者同时通过才选为候选对。
         """)
 
 # ── Tab 2：OU 过程 ────────────────────────────────────────────────────────────
@@ -94,7 +94,8 @@ with tab3:
 
     with st.expander("Kalman Filter 状态空间模型"):
         st.markdown(r"""
-        **观测方程：** $\text{price\_a}_t = \beta_t \cdot \text{price\_b}_t + \alpha_t + \varepsilon_t$
+        **观测方程：** $\text{price\_a}_t = \beta_t \cdot \text{price\_b}_t
+                    + \alpha_t + \varepsilon_t$
 
         **状态方程：** $[\beta_t, \alpha_t] = [\beta_{t-1}, \alpha_{t-1}] + w_t$
 

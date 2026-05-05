@@ -38,7 +38,9 @@ def valuation_momentum(
             continue
 
         # 前向填充到每个交易日
-        aligned = sub.reindex(price_dates.union(sub.index)).sort_index()
+        aligned = sub.reindex(
+            price_dates.union(pd.DatetimeIndex(sub.index))
+        ).sort_index()
         aligned = aligned.ffill().reindex(price_dates)
 
         # PE 变化率（分母取绝对值防止符号翻转）

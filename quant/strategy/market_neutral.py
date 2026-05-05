@@ -122,6 +122,9 @@ def backtest_weights(
         if not weights:
             continue
         idx = returns.index.get_loc(date)
+
+        assert isinstance(idx, int)
+
         if idx + 1 >= len(returns):
             continue
         next_ret = returns.iloc[idx + 1]  # 次日收益（T+1 执行）

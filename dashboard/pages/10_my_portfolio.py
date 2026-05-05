@@ -138,7 +138,6 @@ tab_overview, tab_chart, tab_txn, tab_ret, tab_watch, tab_advice = st.tabs(
 
 # ── Tab 1：持仓总览 ────────────────────────────────────────────────────────────
 with tab_overview:
-
     if holdings.empty:
         st.info("暂无持仓，请在「交易记录」页添加买入记录。")
     else:
@@ -723,7 +722,8 @@ with tab_advice:
                 # 亏损预警
                 if p["ret"] < -0.10:
                     st.error(
-                        f"🔴 **{p['name']}** 浮亏 {p['ret']:.1%}，已超 -10%，建议复盘止损策略"
+                        f"🔴 **{p['name']}** 浮亏 {p['ret']:.1%}，"
+                        + "已超 -10%，建议复盘止损策略"
                     )
                     warnings_found = True
                 elif p["ret"] < -0.05:
@@ -743,7 +743,8 @@ with tab_advice:
                     ret_b = latest_nav_val / b["nav"] - 1
                     if hold_days > 180 and ret_b < 0:
                         st.warning(
-                            f"⚠️ **{b['name']}** 已持有 {hold_days} 天，仍亏损 {ret_b:.1%}，建议重新评估"
+                            f"⚠️ **{b['name']}** 已持有 {hold_days} 天，"
+                            + "仍亏损 {ret_b:.1%}，建议重新评估"
                         )
                         warnings_found = True
 

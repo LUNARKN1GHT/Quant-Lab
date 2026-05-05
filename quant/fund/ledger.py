@@ -110,7 +110,6 @@ def transaction_returns(df: pd.DataFrame, nav: pd.DataFrame) -> pd.DataFrame:
             continue
         nav_series = nav[sym].dropna()
         latest_nav = nav_series.iloc[-1]
-        buy_date_nav = nav_series.asof(row["date"])  # 买入日净值（可能与录入稍差）
         actual_nav = row["nav"]  # 以录入净值为准
         ret = latest_nav / actual_nav - 1
         hold_days = (nav_series.index[-1] - row["date"]).days

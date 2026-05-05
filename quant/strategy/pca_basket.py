@@ -56,7 +56,7 @@ def rolling_pca_residuals(
             continue
 
         # 投影到主成分空间再重建
-        today_arr = today.fillna(0).values.reshape(1, -1)
+        today_arr = today.fillna(0).to_numpy().reshape(1, -1)
         projected = pca.transform(today_arr)  # (1, n_components)
         reconstructed = pca.inverse_transform(projected).flatten()
 
@@ -108,6 +108,7 @@ def portfolio_return(
             continue
 
         idx = returns.index.get_loc(date)
+        assert isinstance(idx, int)
         if idx + holding_period >= len(returns):
             pnl.append({"date": date, "ret": np.nan})
             continue

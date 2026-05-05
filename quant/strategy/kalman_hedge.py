@@ -48,8 +48,8 @@ def fit_kalman(
 
     # 初始化：用前 20 期 OLS 热启动
     init_n = min(20, n)
-    X_init = np.column_stack([price_b.values[:init_n], np.ones(init_n)])
-    y_init = price_a.values[:init_n]
+    X_init = np.column_stack([price_b.to_numpy()[:init_n], np.ones(init_n)])
+    y_init = price_a.to_numpy()[:init_n]
     beta_ols, _, _, _ = np.linalg.lstsq(X_init, y_init, rcond=None)
 
     beta = beta_ols.copy()  # 状态均值 [β, α]

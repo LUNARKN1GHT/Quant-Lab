@@ -45,6 +45,7 @@ select = ["E", "F", "I"]  # E/F: 基础错误, I: import 排序（替代 isort�
 python_version = "3.11"
 strict = false
 warn_unused_ignores = false
+exclude = ["dashboard/", "scripts/"]
 
 # 无 stubs 且不维护 py.typed 的三方库，忽略类型检查
 [[tool.mypy.overrides]]

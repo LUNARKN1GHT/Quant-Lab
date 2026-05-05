@@ -40,14 +40,14 @@ def revenue_acceleration_pit(
         if len(sub) < 2:
             continue
 
-        sub = sub.set_index("disclose_date")["revenue_yoy"]
+        series = sub.set_index("disclose_date")["revenue_yoy"]
 
         # 二阶导：相邻两期披露的营收增速差值
-        acceleration = sub.diff()
+        acceleration = series.diff()
 
         # 前向填充到每个交易日
         aligned = acceleration.reindex(
-            price_dates.union(acceleration.index)
+            price_dates.union(pd.DatetimeIndex(acceleration.index))
         ).sort_index()
         aligned = aligned.ffill().reindex(price_dates)
         results[symbol] = aligned

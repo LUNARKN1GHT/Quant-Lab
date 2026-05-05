@@ -41,9 +41,11 @@ def earnings_quality_pit(
             continue
 
         # 对每个交易日，找截止当日最新披露的报告
-        sub = sub.set_index("disclose_date")["cfo_to_profit"]
+        series = sub.set_index("disclose_date")["cfo_to_profit"]
         # reindex 到所有交易日，前向填充（只用已披露数据）
-        aligned = sub.reindex(price_dates.union(sub.index)).sort_index()
+        aligned = sub.reindex(
+            price_dates.union(pd.DatetimeIndex(series.index))
+        ).sort_index()
         aligned = aligned.ffill().reindex(price_dates)
         results[symbol] = aligned
 
