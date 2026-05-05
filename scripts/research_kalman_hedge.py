@@ -22,6 +22,7 @@ import pandas as pd
 from statsmodels.tsa.stattools import adfuller
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from quant.config import Config
 from quant.strategy.kalman_hedge import fit_kalman, kalman_zscore
 from quant.strategy.ou_process import fit_ou
 
@@ -31,7 +32,8 @@ matplotlib.rcParams["axes.unicode_minus"] = False
 DB_PATH = "data/quant.duckdb"
 SYMBOL_A = "601398"  # 工商银行
 SYMBOL_B = "601939"  # 建设银行
-ROLLING_WINDOW = 60
+_cfg = Config()
+ROLLING_WINDOW = _cfg.stat_arb.pca_window
 
 
 def load_prices(con, sym_a, sym_b):

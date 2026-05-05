@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from quant.config import Config
 from quant.factor.fund_flow import fund_flow_momentum
 from quant.strategy.market_neutral import (
     backtest_weights,
@@ -30,10 +31,11 @@ matplotlib.rcParams["font.sans-serif"] = ["Arial Unicode MS", "SimHei"]
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 DB_PATH = "data/quant.duckdb"
-MOMENTUM_WINDOW = 20  # 主力资金动量窗口
-BETA_WINDOW = 60  # 滚动 Beta 估计窗口
-N_LONG = 20
-N_SHORT = 20
+_cfg = Config()
+MOMENTUM_WINDOW = _cfg.market_neutral.momentum_window
+BETA_WINDOW = _cfg.market_neutral.beta_window
+N_LONG = _cfg.market_neutral.n_long
+N_SHORT = _cfg.market_neutral.n_short
 
 
 # 简化行业映射（按股票代码前缀粗分）

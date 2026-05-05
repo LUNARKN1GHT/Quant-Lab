@@ -122,6 +122,46 @@ class RegimeConfig:
 
 
 @dataclass
+class StatArbConfig:
+    """统计套利参数"""
+
+    kalman_delta: float = 1e-4
+    """状态转移噪声"""
+
+    kalman_obs_noise: float = 1e-3
+    """观测噪声初始值"""
+
+    ou_zscore_window: int = 20
+    """OU z-score 滚动窗口"""
+
+    pca_window: int = 60
+    """PCA 估计窗口"""
+
+    pca_entry: float = 1.5
+    """入场阈值"""
+
+    pca_exit: float = 0.5
+    """出场阈值"""
+
+
+@dataclass
+class MarketNeutralConfig:
+    """市场中性参数"""
+
+    beta_window: int = 60
+    """beta 窗口长度"""
+
+    n_long: int = 20
+    """多头持股数量"""
+
+    n_short: int = 20
+    """空头持股数量"""
+
+    momentum_window: int = 20
+    """动量窗口"""
+
+
+@dataclass
 class Config:
     """全局配置根对象，聚合所有子配置。
 
@@ -137,6 +177,8 @@ class Config:
     ml: MLConfig = field(default_factory=MLConfig)
     regime: RegimeConfig = field(default_factory=RegimeConfig)
     advisor: AdvisorConfig = field(default_factory=AdvisorConfig)
+    stat_arb: StatArbConfig = field(default_factory=StatArbConfig)
+    market_neutral: MarketNeutralConfig = field(default_factory=MarketNeutralConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Config":
@@ -151,6 +193,8 @@ class Config:
             ml=MLConfig(**raw.get("ml", {})),
             regime=RegimeConfig(**raw.get("regime", {})),
             advisor=AdvisorConfig(**raw.get("advisor", {})),
+            stat_arb=StatArbConfig(**raw.get("stat_arb", {})),
+            market_neutral=MarketNeutralConfig(**raw.get("market_neutral", {})),
         )
 
     def to_yaml(self, path: str | Path) -> None:

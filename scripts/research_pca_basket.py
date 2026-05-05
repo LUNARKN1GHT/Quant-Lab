@@ -19,6 +19,7 @@ from sklearn.decomposition import PCA
 from statsmodels.tsa.stattools import adfuller
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from quant.config import Config
 from quant.strategy.pca_basket import (
     basket_signal,
     pca_zscore,
@@ -30,11 +31,12 @@ matplotlib.rcParams["font.sans-serif"] = ["Arial Unicode MS", "SimHei"]
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 DB_PATH = "data/quant.duckdb"
-PCA_WINDOW = 60  # 滚动估计窗口
-ZSCORE_WINDOW = 20  # 残差标准化窗口
-ENTRY = 1.5  # 入场阈值
-EXIT = 0.5  # 平仓阈值
-HOLDING = 5  # 持仓天数
+_cfg = Config()
+PCA_WINDOW = _cfg.stat_arb.pca_window
+ZSCORE_WINDOW = _cfg.stat_arb.ou_zscore_window
+ENTRY = _cfg.stat_arb.pca_entry
+EXIT = _cfg.stat_arb.pca_exit
+HOLDING = 5  # 持仓天数（策略专属，不纳入全局配置）
 
 # 银行板块代表股（沪深300中银行股）
 BANK_SYMBOLS = [

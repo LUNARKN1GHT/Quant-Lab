@@ -37,3 +37,17 @@ advisor:
   vol_window: 20
   max_position: 1.0
   min_position: 0.0
+
+stat_arb:
+  kalman_delta: 1e-4
+  kalman_obs_noise: 1e-3
+  ou_zsocre_window: 20
+  pca_window: 60
+  pca_entry: 1.5
+  pca_exit: 0.5
+
+market_neutral:
+  beta_window: 60
+  n_long: 60
+  n_short: 20
+  momentum_window: 20
