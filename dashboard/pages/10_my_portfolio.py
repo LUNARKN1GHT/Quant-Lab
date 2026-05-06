@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+
 import duckdb
 import pandas as pd
 import plotly.express as px
@@ -16,6 +17,13 @@ from quant.factor.bollinger import bollinger_position
 from quant.factor.ma_bias import ma_bias
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
+from quant.fund.dca import (
+    PERIOD_DAYS,
+    PERIOD_LABELS,
+    load_dca_plans,
+    next_trading_day,
+    save_dca_plans,
+)
 from quant.fund.ledger import (
     compute_holdings,
     load_transactions,
@@ -32,7 +40,6 @@ st.title("💼 我的基金持仓")
 
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "quant.duckdb"
 
-
 # ── Session state 初始化 ──────────────────────────────────────────────────────
 if "txns" not in st.session_state:
     st.session_state.txns = load_transactions()
@@ -47,6 +54,10 @@ wl = st.session_state.watchlist
 if not wl.empty and "added_date" in wl.columns:
     wl["added_date"] = pd.to_datetime(wl["added_date"])
 st.session_state.watchlist = wl
+
+if "dca_plans" not in st.session_state:
+    st.session_state.dca_plans = load_dca_plans()
+dca_plans = st.session_state.dca_plans
 
 
 def reload():
@@ -124,13 +135,14 @@ holdings = compute_holdings(txns)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-tab_overview, tab_chart, tab_txn, tab_ret, tab_watch, tab_advice = st.tabs(
+tab_overview, tab_chart, tab_txn, tab_ret, tab_watch, tab_dca, tab_advice = st.tabs(
     [
         "📊 持仓总览",
         "📈 净值走势",
         "📝 交易记录",
         "💹 收益分析",
         "📋 自选追踪",
+        "🔁 定投计划",
         "📡 投资建议",
     ]
 )
@@ -611,8 +623,197 @@ with tab_watch:
             else:
                 st.info("净值数据不足（需 ≥30 个交易日）")
 
+# ── Tab 6：定投计划 ────────────────────────────────────────────────────────────
+with tab_dca:
+    dca_plans = st.session_state.dca_plans
 
-# ── Tab 6：投资建议 ────────────────────────────────────────────────────────────
+    # ── 添加定投计划 ──
+    st.subheader("管理定投计划")
+    with st.form("add_dca", clear_on_submit=True):
+        dc1, dc2, dc3, dc4 = st.columns(4)
+        dca_sym = dc1.text_input("基金代码", placeholder="009610")
+        dca_name = dc2.text_input("基金名称", placeholder="xxx基金")
+        dca_amount = dc3.number_input(
+            "每期金额（元）", min_value=1.0, value=500.0, step=100.0
+        )
+        dca_period = dc4.selectbox(
+            "定投周期",
+            options=list(PERIOD_LABELS.keys()),
+            index=3,  # 默认 monthly
+            format_func=lambda x: PERIOD_LABELS[x],
+        )
+        dca_note = st.text_input("备注（可选）", placeholder="月定投...")
+        if st.form_submit_button("➕ 保存计划", type="primary"):
+            if not dca_sym or not dca_name:
+                st.error("代码和名称不能为空")
+            elif not dca_plans.empty and dca_sym in dca_plans["symbol"].values:
+                st.warning(f"{dca_sym} 已有定投计划，请先删除再新增")
+            else:
+                new_plan = pd.DataFrame(
+                    [
+                        {
+                            "symbol": dca_sym.strip(),
+                            "name": dca_name.strip(),
+                            "amount": dca_amount,
+                            "period": dca_period,
+                            "note": dca_note,
+                        }
+                    ]
+                )
+                st.session_state.dca_plans = pd.concat(
+                    [dca_plans, new_plan], ignore_index=True
+                )
+                save_dca_plans(st.session_state.dca_plans)
+                st.success(
+                    f"已保存：{dca_name}"
+                    f" {PERIOD_LABELS[dca_period]}定投 ¥{dca_amount:.0f}"
+                )
+                st.rerun()
+
+    # 展示 & 删除计划
+    dca_plans = st.session_state.dca_plans
+    if not dca_plans.empty:
+        display_plans = dca_plans.copy()
+        if "period" in display_plans.columns:
+            display_plans["period"] = display_plans["period"].map(PERIOD_LABELS)
+        st.dataframe(
+            display_plans.rename(
+                columns={
+                    "symbol": "代码",
+                    "name": "名称",
+                    "amount": "每期金额(元)",
+                    "period": "周期",
+                    "note": "备注",
+                }
+            ),
+            hide_index=True,
+            width="stretch",
+        )
+        del_plan_sym = st.selectbox(
+            "删除计划",
+            options=dca_plans["symbol"].tolist(),
+            format_func=lambda s: f"{s} {dca_plans.set_index('symbol').loc[s, 'name']}",
+            key="del_dca_sym",
+        )
+        if st.button("🗑️ 删除该计划", type="secondary"):
+            st.session_state.dca_plans = dca_plans[
+                dca_plans["symbol"] != del_plan_sym
+            ].reset_index(drop=True)
+            save_dca_plans(st.session_state.dca_plans)
+            st.rerun()
+
+    st.divider()
+
+    # ── 一键执行定投 ──
+    st.subheader("执行定投")
+    if dca_plans.empty:
+        st.info("请先添加定投计划。")
+    else:
+        exec_plan_sym = st.selectbox(
+            "选择定投计划",
+            options=dca_plans["symbol"].tolist(),
+            format_func=lambda s: (
+                f"{s}  {dca_plans.set_index('symbol').loc[s, 'name']}"
+                f"  ¥{dca_plans.set_index('symbol').loc[s, 'amount']:.0f}/期"
+            ),
+            key="exec_dca_sym",
+        )
+        plan_row = dca_plans[dca_plans["symbol"] == exec_plan_sym].iloc[0]
+        plan_amount = float(plan_row["amount"])
+        plan_name = str(plan_row["name"])
+        plan_period = str(plan_row.get("period", "monthly"))
+
+        # ── 上次/下次定投提示 ──
+        sym_txns = st.session_state.txns[
+            st.session_state.txns["symbol"] == exec_plan_sym
+        ].sort_values("date")
+        if not sym_txns.empty:
+            last_date = sym_txns["date"].iloc[-1]
+            period_days = PERIOD_DAYS.get(plan_period, 30)
+            raw_next = last_date + pd.Timedelta(days=period_days)
+            if not nav.empty and exec_plan_sym in nav.columns:
+                adjusted = next_trading_day(raw_next, nav[exec_plan_sym])
+                next_due = adjusted if adjusted is not None else raw_next
+            else:
+                next_due = raw_next
+            today = pd.Timestamp.today().normalize()
+            overdue = today >= next_due
+            label = "🔴 已到期" if overdue else "🟢 未到期"
+            st.caption(
+                f"上次定投：{last_date.date()}　"
+                f"周期：{PERIOD_LABELS.get(plan_period, '每月')}　"
+                f"下次应投：{next_due.date()}（已跳过节假日）　{label}"
+            )
+
+        col_date, col_nav, col_amount = st.columns(3)
+        exec_date = col_date.date_input("定投日期", key="exec_dca_date")
+        exec_note = st.text_input(
+            "备注", value=str(plan_row.get("note", "定投")), key="exec_dca_note"
+        )
+
+        # 自动从数据库读取当日净值（若当日无净值则取最近交易日）
+        auto_nav: float | None = None
+        if not nav.empty and exec_plan_sym in nav.columns:
+            ts = pd.Timestamp(exec_date)
+            series = nav[exec_plan_sym].dropna()
+            if ts in series.index:
+                auto_nav = float(series[ts])
+            elif ts <= series.index[-1]:
+                val = series.asof(ts)
+                if pd.notna(val):
+                    auto_nav = float(val)  # type: ignore[arg-type]
+
+        exec_nav = col_nav.number_input(
+            "成交净值（自动填充，可修改）",
+            min_value=0.0001,
+            value=auto_nav if auto_nav else 1.0,
+            step=0.0001,
+            format="%.4f",
+            key="exec_dca_nav",
+        )
+        exec_amount = col_amount.number_input(
+            "本期金额（元）",
+            min_value=1.0,
+            value=plan_amount,
+            step=100.0,
+            key="exec_dca_amount",
+        )
+
+        exec_shares = exec_amount / exec_nav
+        st.info(
+            f"将买入 **{plan_name}**：¥{exec_amount:.2f} ÷ {exec_nav:.4f}"
+            f" = **{exec_shares:.2f} 份**"
+        )
+
+        if st.button("✅ 确认执行定投", type="primary"):
+            new_row = pd.DataFrame(
+                [
+                    {
+                        "id": next_id(st.session_state.txns),
+                        "symbol": exec_plan_sym,
+                        "name": plan_name,
+                        "date": pd.Timestamp(exec_date),
+                        "type": "buy",
+                        "shares": round(exec_shares, 2),
+                        "nav": exec_nav,
+                        "note": exec_note or "定投",
+                    }
+                ]
+            )
+            st.session_state.txns = (
+                pd.concat([st.session_state.txns, new_row], ignore_index=True)
+                .sort_values("date")
+                .reset_index(drop=True)
+            )
+            save_transactions(st.session_state.txns)
+            st.success(
+                f"✅ 定投成功：{plan_name}  买入 {exec_shares:.2f} 份 @ {exec_nav:.4f}"
+            )
+            st.cache_data.clear()
+            st.rerun()
+
+
+# ── Tab 7：投资建议 ────────────────────────────────────────────────────────────
 with tab_advice:
     if nav.empty or holdings.empty:
         st.info("需要持仓和净值数据才能生成建议。")
