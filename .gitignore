@@ -227,3 +227,4 @@ CLAUDE.md
 
 # 个人持仓情况
 configs/fund_transactions.yaml
+configs/fund_watchlist.yaml
