@@ -19,6 +19,12 @@ from quant.strategy.market_neutral import (
     sector_neutralize,
 )
 from quant.strategy.ou_process import OUParams, entry_exit_thresholds, fit_ou, ou_zscore
+from quant.strategy.pca_basket import (
+    basket_signal,
+    pca_zscore,
+    portfolio_return,
+    rolling_pca_residuals,
+)
 
 # ── OU 过程 ─────────────────────────────────────────────────────────────────
 
@@ -252,3 +258,136 @@ def test_build_portfolio_empty_when_too_few_stocks():
     betas = pd.Series({"A": 1.0, "B": 1.0})
     result = build_portfolio(scores, betas, n_long=5, n_short=5)
     assert result == {}
+
+
+# --- PCA 篮子套利 ----------
+
+
+def make_sector_returns(
+    n_stocks: int = 10, n_days: int = 120, seed: int = 0
+) -> pd.DataFrame:
+    """生成有共同因子结构的板块收益率：r_i = β_i * F + ε_i"""
+    rng = np.random.default_rng(seed)
+    common = rng.normal(0, 0.01, n_days)  # 板块共同因子
+    betas = rng.uniform(0.5, 1.5, n_stocks)
+    idio = rng.normal(0, 0.005, (n_days, n_stocks))  # 特质噪声
+    data = np.outer(common, betas) + idio
+    return pd.DataFrame(data, columns=[f"S{i}" for i in range(n_stocks)])
+
+
+def test_rolling_pca_residuals_shape():
+    returns = make_sector_returns(n_stocks=10, n_days=120)
+    window = 60
+    resid = rolling_pca_residuals(returns, window=window)
+    assert resid.shape == returns.shape
+    # 前 window 行应全为 NaN
+    assert resid.iloc[:window].isna().all().all()
+
+
+def test_rolling_pca_residuals_has_values_after_window():
+    returns = make_sector_returns(n_stocks=10, n_days=120)
+    resid = rolling_pca_residuals(returns, window=60)
+    # window 之后应有非 NaN 值
+    assert resid.iloc[60:].notna().any().any()
+
+
+def test_rolling_pca_residuals_smaller_than_raw():
+    # 去掉共同因子后，残差的绝对值应小于原始收益率
+    returns = make_sector_returns(n_stocks=10, n_days=120)
+    resid = rolling_pca_residuals(returns, window=60)
+    valid = resid.iloc[60:]
+    raw_valid = returns.iloc[60:]
+    assert valid.abs().mean().mean() < raw_valid.abs().mean().mean()
+
+
+def test_pca_zscore_shape():
+    returns = make_sector_returns(n_stocks=10, n_days=120)
+    resid = rolling_pca_residuals(returns, window=60)
+    z = pca_zscore(resid, window=20)
+    assert z.shape == resid.shape
+
+
+def test_pca_zscore_roughly_standardized():
+    # rolling zscore 稳定后，各列 std 应接近 1
+    returns = make_sector_returns(n_stocks=10, n_days=200)
+    resid = rolling_pca_residuals(returns, window=60)
+    z = pca_zscore(resid, window=20)
+    tail = z.iloc[90:]  # 跳过预热期
+    col_stds = tail.std()
+    assert (col_stds.dropna() < 1.5).all()
+
+
+def test_basket_signal_direction():
+    # z-score 低于 -entry → 做多(+1)；高于 +entry → 做空(-1)；中间 → 0
+    z = pd.DataFrame(
+        {
+            "A": [-2.0],  # 低估，做多
+            "B": [2.0],  # 高估，做空
+            "C": [0.1],  # 中性，空仓
+        }
+    )
+    sig = basket_signal(z, entry_threshold=1.5, exit_threshold=0.5)
+    assert sig.loc[0, "A"] == 1
+    assert sig.loc[0, "B"] == -1
+    assert sig.loc[0, "C"] == 0
+
+
+def test_basket_signal_no_signal_when_moderate():
+    z = pd.DataFrame({"A": [0.8], "B": [-0.6]})
+    sig = basket_signal(z, entry_threshold=1.5, exit_threshold=0.5)
+    assert (sig == 0).all().all()
+
+
+def test_portfolio_return_long_minus_short():
+    # 做多涨的股票，做空跌的股票，收益应为正
+    returns = pd.DataFrame(
+        {"A": [0.02, 0.01], "B": [-0.02, -0.01]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    signal = pd.DataFrame(
+        {"A": [1, 0], "B": [-1, 0]},
+        index=returns.index,
+    )
+    pnl = portfolio_return(signal, returns, holding_period=1)
+    # 第一天：做多 A(+2%)，做空 B(-2%) → 收益 = 0.02 - (-0.02) = 0.04
+    assert pnl.iloc[0] == pytest.approx(0.04, abs=1e-6)
+
+
+def test_portfolio_return_no_signal_gives_zero():
+    returns = pd.DataFrame(
+        {"A": [0.05], "B": [-0.05]},
+        index=pd.date_range("2024-01-01", periods=1),
+    )
+    signal = pd.DataFrame({"A": [0], "B": [0]}, index=returns.index)
+    pnl = portfolio_return(signal, returns, holding_period=1)
+    assert pnl.iloc[0] == pytest.approx(0.0)
+
+
+def test_rolling_pca_residuals_too_few_stocks_skipped():
+    # 只有 3 只股票（< 5），所有行应全为 NaN
+    returns = make_sector_returns(n_stocks=3, n_days=80)
+    resid = rolling_pca_residuals(returns, window=60)
+    assert resid.isna().all().all()
+
+
+def test_rolling_pca_residuals_all_nan_today_skipped():
+    # 某一天所有股票都是 NaN，该行残差保持 NaN
+    returns = make_sector_returns(n_stocks=10, n_days=90)
+    returns.iloc[70] = np.nan  # 第 70 天全部置 NaN
+    resid = rolling_pca_residuals(returns, window=60)
+    assert resid.iloc[70].isna().all()
+
+
+def test_portfolio_return_last_row_is_nan():
+    # 最后一行信号因取不到前向收益，返回 NaN
+    returns = pd.DataFrame(
+        {"A": [0.01, 0.02, 0.03], "B": [-0.01, -0.02, -0.03]},
+        index=pd.date_range("2024-01-01", periods=3),
+    )
+    # 最后一天有信号，但 holding_period=1 超出边界
+    signal = pd.DataFrame(
+        {"A": [0, 0, 1], "B": [0, 0, -1]},
+        index=returns.index,
+    )
+    pnl = portfolio_return(signal, returns, holding_period=1)
+    assert np.isnan(pnl.iloc[-1])
