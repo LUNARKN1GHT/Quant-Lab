@@ -24,6 +24,7 @@ from quant.fund.dca import (
     next_trading_day,
     save_dca_plans,
 )
+from quant.fund.advisor_signal import fund_position_advice, latest_signal
 from quant.fund.ledger import (
     compute_holdings,
     load_transactions,
@@ -81,6 +82,17 @@ def get_nav(syms):
     nav = load_nav_matrix(con, syms)
     con.close()
     return nav
+
+
+@st.cache_data(ttl=3600, show_spinner="计算市场信号...")
+def get_advisor_signal():
+    from quant.config import Config
+
+    cfg = Config()
+    try:
+        return latest_signal(cfg=cfg)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 col_refresh, _ = st.columns([1, 4])
@@ -625,6 +637,25 @@ with tab_watch:
 
 # ── Tab 6：定投计划 ────────────────────────────────────────────────────────────
 with tab_dca:
+    # ── Regime 定投指导 ───────────────────────────────────────────────────────
+    _dca_signal = get_advisor_signal()
+    if "error" not in _dca_signal:
+        _regime_dca_hint = {
+            "BULL": (
+                "🟡 当前市场处于上行趋势（BULL）。定投性价比偏低，"
+                "可维持计划金额，不建议额外加仓。"
+            ),
+            "RANGE": (
+                "🟢 当前市场处于震荡区间（RANGE）。定投是最合适的入场方式，"
+                "可按计划执行，波动中均摊成本。"
+            ),
+            "BEAR": (
+                "🔵 当前市场处于下行阶段（BEAR）。若相信长期价值，"
+                "此时是定投的高性价比窗口，可考虑适当增加定投金额或频率。"
+            ),
+        }
+        st.info(_regime_dca_hint.get(_dca_signal["regime"], ""))
+
     dca_plans = st.session_state.dca_plans
 
     # ── 添加定投计划 ──
@@ -818,7 +849,112 @@ with tab_advice:
     if nav.empty or holdings.empty:
         st.info("需要持仓和净值数据才能生成建议。")
     else:
-        # ── 因子信号（持仓基金）──
+        # ── 全局 Advisor 信号 ─────────────────────────────────────────────────
+        st.subheader("📡 市场信号与建议仓位")
+        st.caption("基于沪深300趋势 × 波动率目标 × 宏观景气的三层仓位模型")
+
+        signal = get_advisor_signal()
+
+        if "error" in signal:
+            st.warning(f"信号获取失败：{signal['error']}")
+        else:
+            sig_c1, sig_c2, sig_c3, sig_c4 = st.columns(4)
+            sig_c1.metric(
+                "市场状态",
+                f"{signal['regime_emoji']} {signal['regime']}",
+                help=signal["regime_label"],
+            )
+            sig_c2.metric(
+                "建议权益仓位",
+                f"{signal['position']:.1%}",
+                help="= Regime × 波动率 × 宏观三层乘数综合结果",
+            )
+            sig_c3.metric(
+                "信号日期",
+                str(signal["date"].date()),
+            )
+            sig_c4.metric(
+                "宏观乘数",
+                f"{signal['macro_multiplier']:.2f}",
+                help="宏观景气高时>1，低时<1；无宏观数据时恒为1.0",
+            )
+
+            with st.expander("信号分解明细"):
+                detail_df = pd.DataFrame(
+                    [
+                        {
+                            "层级": "Regime（市场环境）",
+                            "值": signal["regime_label"],
+                            "系数": f"{signal['regime_scale']:.2f}",
+                        },
+                        {
+                            "层级": "波动率目标法",
+                            "值": "realized_vol → target_vol",
+                            "系数": f"{signal['vol_scale']:.2f}",
+                        },
+                        {
+                            "层级": "宏观景气乘数",
+                            "值": "PMI / 利率 / M2 综合",
+                            "系数": f"{signal['macro_multiplier']:.2f}",
+                        },
+                        {
+                            "层级": "最终建议仓位",
+                            "值": "三层乘积（截断至[min, max]）",
+                            "系数": f"{signal['position']:.2f}",
+                        },
+                    ]
+                )
+                st.dataframe(detail_df, hide_index=True, width="stretch")
+
+            st.divider()
+
+            # ── 持仓操作建议 ──────────────────────────────────────────────────
+            st.subheader("持仓操作建议")
+            st.caption(
+                "当前仓位与 Advisor 建议仓位的偏差，超过总资金 2% 时触发操作提示"
+            )
+
+            # 构建含 mkt 的持仓 DataFrame
+            advice_rows = []
+            for _, h in holdings.iterrows():
+                sym = h["symbol"]
+                if sym not in nav.columns:
+                    continue
+                latest_nav_val = nav[sym].dropna().iloc[-1]
+                mkt = h["shares"] * latest_nav_val
+                advice_rows.append(
+                    {
+                        "symbol": sym,
+                        "name": h["name"],
+                        "mkt": mkt,
+                        "fund_type": "equity",  # 默认权益型
+                    }
+                )
+
+            if advice_rows:
+                advice_holdings = pd.DataFrame(advice_rows)
+                total_mkt = advice_holdings["mkt"].sum()
+                # 总资金 = 持仓市值（暂不含现金，后续可扩展）
+                advice_df = fund_position_advice(signal, advice_holdings, total_mkt)
+                st.dataframe(
+                    advice_df.style.format(
+                        {
+                            "当前仓位": "{:.1%}",
+                            "建议仓位": "{:.1%}",
+                            "偏差金额": "{:+.2f}",
+                        }
+                    ),
+                    hide_index=True,
+                    width="stretch",
+                )
+                st.caption(
+                    "⚠️ 总资金当前仅含持仓市值，未计入现金。"
+                    "如需更精确的偏差计算，请在此处手动输入总资金。"
+                )
+
+            st.divider()
+
+            # ── 因子信号（持仓基金）──────────────────────────────────────────────
         st.subheader("持仓基金因子信号")
         st.caption("基于持仓基金 NAV 走势的技术面扫描")
 
@@ -882,11 +1018,10 @@ with tab_advice:
 
         st.divider()
 
-        # ── 风险预警 ──
+        # ── 风险预警 ──────────────────────────────────────────────────────────
         st.subheader("风险预警")
         warnings_found = False
 
-        # 需要 df_pos（持仓总览中的数据），重新计算
         pos_rows = []
         for _, h in holdings.iterrows():
             sym = h["symbol"]
@@ -913,14 +1048,12 @@ with tab_advice:
             for _, p in pos_df.iterrows():
                 weight = p["mkt"] / total_mkt if total_mkt > 0 else 0
 
-                # 集中度预警
                 if weight > 0.5:
                     st.warning(
                         f"⚠️ **{p['name']}** 仓位占比 {weight:.1%}，集中度过高，建议分散"
                     )
                     warnings_found = True
 
-                # 亏损预警
                 if p["ret"] < -0.10:
                     st.error(
                         f"🔴 **{p['name']}** 浮亏 {p['ret']:.1%}，"
@@ -931,7 +1064,6 @@ with tab_advice:
                     st.warning(f"⚠️ **{p['name']}** 浮亏 {p['ret']:.1%}，请持续关注")
                     warnings_found = True
 
-            # 检查长期持有但亏损（结合交易记录）
             if not txns.empty:
                 buys = txns[txns["type"] == "buy"]
                 today = pd.Timestamp.today()
@@ -945,7 +1077,7 @@ with tab_advice:
                     if hold_days > 180 and ret_b < 0:
                         st.warning(
                             f"⚠️ **{b['name']}** 已持有 {hold_days} 天，"
-                            + "仍亏损 {ret_b:.1%}，建议重新评估"
+                            f"仍亏损 {ret_b:.1%}，建议重新评估"
                         )
                         warnings_found = True
 
