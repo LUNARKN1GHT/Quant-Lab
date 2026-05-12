@@ -1,7 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
-import pytest
-from unittest.mock import MagicMock, patch
 
 from quant.config import Config
 from quant.fund.advisor_signal import (
@@ -11,8 +11,8 @@ from quant.fund.advisor_signal import (
     load_local_close,
 )
 
-
 # ── 测试数据工厂 ──────────────────────────────────────────────────────────────
+
 
 def _make_close(n: int = 250, seed: int = 0) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
@@ -26,7 +26,9 @@ def _make_close(n: int = 250, seed: int = 0) -> pd.DataFrame:
 
 def _make_mock_con(close_df: pd.DataFrame) -> MagicMock:
     """返回模拟 duckdb 连接，execute().df() 返回 long-format 价格表"""
-    long = close_df.reset_index().melt(id_vars="date", var_name="symbol", value_name="close")
+    long = close_df.reset_index().melt(
+        id_vars="date", var_name="symbol", value_name="close"
+    )
     long["adjust"] = "qfq"
     mock_con = MagicMock()
     mock_con.execute.return_value.df.return_value = long
@@ -34,6 +36,7 @@ def _make_mock_con(close_df: pd.DataFrame) -> MagicMock:
 
 
 # ── load_local_close ─────────────────────────────────────────────────────────
+
 
 def test_load_local_close_returns_wide_dataframe():
     close_df = _make_close()
@@ -55,14 +58,20 @@ def test_load_local_close_closes_connection():
 
 # ── latest_signal ────────────────────────────────────────────────────────────
 
+
 def test_latest_signal_keys():
     close = _make_close()
     cfg = Config()
     sig = latest_signal(cfg, close=close)
     expected = {
-        "regime", "regime_label", "regime_emoji",
-        "regime_scale", "vol_scale", "macro_multiplier",
-        "position", "date",
+        "regime",
+        "regime_label",
+        "regime_emoji",
+        "regime_scale",
+        "vol_scale",
+        "macro_multiplier",
+        "position",
+        "date",
     }
     assert expected == set(sig.keys())
 
@@ -101,7 +110,10 @@ def test_latest_signal_uses_local_close_when_none(monkeypatch):
 
 # ── fund_position_advice ──────────────────────────────────────────────────────
 
-def _make_holdings(symbols=("F1", "F2", "F3"), fund_types=("equity", "bond", "balanced")):
+
+def _make_holdings(
+    symbols=("F1", "F2", "F3"), fund_types=("equity", "bond", "balanced")
+):
     rows = [
         {"symbol": s, "name": f"基金{s}", "mkt": 10000.0, "fund_type": ft}
         for s, ft in zip(symbols, fund_types)
@@ -110,9 +122,11 @@ def _make_holdings(symbols=("F1", "F2", "F3"), fund_types=("equity", "bond", "ba
 
 
 def _make_signal(regime: str = "RANGE", position: float = 0.6) -> dict:
-    labels = {"BULL": ("BULL — 趋势上行", "🟢"),
-               "RANGE": ("RANGE — 震荡整理", "🟡"),
-               "BEAR": ("BEAR — 趋势下行", "🔴")}
+    labels = {
+        "BULL": ("BULL — 趋势上行", "🟢"),
+        "RANGE": ("RANGE — 震荡整理", "🟡"),
+        "BEAR": ("BEAR — 趋势下行", "🔴"),
+    }
     label, emoji = labels[regime]
     return {
         "regime": regime,
@@ -143,7 +157,9 @@ def test_fund_position_advice_columns():
 
 def test_fund_position_advice_action_add():
     """仓位明显低于建议时应给出加仓建议"""
-    holdings = pd.DataFrame([{"symbol": "F1", "name": "基金F1", "mkt": 100.0, "fund_type": "equity"}])
+    holdings = pd.DataFrame(
+        [{"symbol": "F1", "name": "基金F1", "mkt": 100.0, "fund_type": "equity"}]
+    )
     sig = _make_signal(position=0.9)
     result = fund_position_advice(sig, holdings, total_capital=10000.0)
     assert "加仓" in result.iloc[0]["操作建议"]
@@ -155,7 +171,9 @@ def test_fund_position_advice_action_hold():
     sig = _make_signal(regime="RANGE", position=0.5)
     mkt = 5000.0
     total = mkt / 0.5  # suggested_mkt == current_mkt
-    holdings = pd.DataFrame([{"symbol": "F1", "name": "基金F1", "mkt": mkt, "fund_type": "equity"}])
+    holdings = pd.DataFrame(
+        [{"symbol": "F1", "name": "基金F1", "mkt": mkt, "fund_type": "equity"}]
+    )
     result = fund_position_advice(sig, holdings, total_capital=total)
     assert "持有" in result.iloc[0]["操作建议"]
 
@@ -163,12 +181,16 @@ def test_fund_position_advice_action_hold():
 def test_fund_position_advice_bond_scale_bull():
     """债基在牛市建议仓位应低于权益基（bond BULL scale=0.5 < equity BULL scale=1.0）"""
     sig = _make_signal(regime="BULL", position=0.8)
-    holdings = pd.DataFrame([
-        {"symbol": "EQ", "name": "权益基", "mkt": 8000.0, "fund_type": "equity"},
-        {"symbol": "BD", "name": "债基",   "mkt": 8000.0, "fund_type": "bond"},
-    ])
-    result = fund_position_advice(sig, holdings, total_capital=16000.0).set_index("代码")
-    assert result.loc["BD", "建议仓位"] < result.loc["EQ", "建议仓位"]
+    holdings = pd.DataFrame(
+        [
+            {"symbol": "EQ", "name": "权益基", "mkt": 8000.0, "fund_type": "equity"},
+            {"symbol": "BD", "name": "债基", "mkt": 8000.0, "fund_type": "bond"},
+        ]
+    )
+    result = fund_position_advice(sig, holdings, total_capital=16000.0).set_index(
+        "代码"
+    )
+    assert result.loc["BD", "建议仓位"] < result.loc["EQ", "建议仓位"]  # type: ignore
 
 
 def test_fund_position_advice_default_fund_type():
