@@ -120,11 +120,11 @@ if "sector_suggestions" in st.session_state:
         st.markdown("**超配行业**")
         st.dataframe(
             overweight.style.format({"RS": "{:.3f}", "RS动量": "{:.4f}"}),
-            use_container_width=True,
+            width="stretch",
         )
     with c2:
         st.markdown("**低配行业**")
         st.dataframe(
             underweight.style.format({"RS": "{:.3f}", "RS动量": "{:.4f}"}),
-            use_container_width=True,
+            width="stretch",
         )
