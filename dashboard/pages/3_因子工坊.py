@@ -309,7 +309,7 @@ with tab_single:
     )
     fig_ic.add_hline(y=0, line_color="gray", line_width=0.5)
     fig_ic.update_layout(xaxis_title="日期", yaxis_title="IC", hovermode="x unified")
-    st.plotly_chart(fig_ic, use_container_width=True)
+    st.plotly_chart(fig_ic, width="stretch")
 
     st.subheader(f"因子五分位分层收益（前向 {fwd_window} 日）")
     q_rets = _compute_quantile_returns(
@@ -328,7 +328,7 @@ with tab_single:
     fig_q.update_layout(
         yaxis_tickformat=".2%", xaxis_title="分位组", yaxis_title="平均前向收益"
     )
-    st.plotly_chart(fig_q, use_container_width=True)
+    st.plotly_chart(fig_q, width="stretch")
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -362,7 +362,7 @@ with tab_all:
                 "样本月数": "{:.0f}",
             }
         ).bar(subset=["ICIR"], align="mid", color=["#F44336", "#4CAF50"])
-        st.dataframe(styled_summary, use_container_width=True)
+        st.dataframe(styled_summary, width="stretch")
 
         st.subheader("ICIR 排名")
         fig_icir = go.Figure()
@@ -393,7 +393,7 @@ with tab_all:
         fig_icir.update_layout(
             xaxis_title="因子", yaxis_title="ICIR", xaxis_tickangle=-30
         )
-        st.plotly_chart(fig_icir, use_container_width=True)
+        st.plotly_chart(fig_icir, width="stretch")
 
         st.subheader("因子相关性矩阵（最新截面）")
         st.caption("相关性过高（>0.7）的因子存在冗余，可考虑合并或剔除")
@@ -406,7 +406,7 @@ with tab_all:
             aspect="auto",
         )
         fig_corr.update_layout(coloraxis_colorbar_title="相关系数")
-        st.plotly_chart(fig_corr, use_container_width=True)
+        st.plotly_chart(fig_corr, width="stretch")
 
         effective = summary_df[summary_df["ICIR"].abs() > icir_threshold]
         if not effective.empty:
@@ -481,7 +481,7 @@ with tab_param:
             yaxis_title="ICIR",
             hovermode="x unified",
         )
-        st.plotly_chart(fig_gs1, use_container_width=True)
+        st.plotly_chart(fig_gs1, width="stretch")
 
         st.subheader("IS vs OOS IC 均值")
         fig_gs2 = go.Figure()
@@ -510,10 +510,10 @@ with tab_param:
             yaxis_title="IC 均值",
             hovermode="x unified",
         )
-        st.plotly_chart(fig_gs2, use_container_width=True)
+        st.plotly_chart(fig_gs2, width="stretch")
 
         st.subheader("详细结果")
-        st.dataframe(gs_df.style.format("{:.4f}", na_rep="—"), use_container_width=True)
+        st.dataframe(gs_df.style.format("{:.4f}", na_rep="—"), width="stretch")
 
         best_w = gs_df["OOS_ICIR"].idxmax()
         oos_val = cast(float, gs_df.loc[best_w, "OOS_ICIR"])
@@ -552,7 +552,7 @@ with tab_research:
         selected_img = st.selectbox("选择因子", list(_factor_imgs.keys()))
         img_path = _IMG_DIR / _factor_imgs[selected_img]
         if img_path.exists():
-            st.image(str(img_path), use_container_width=True)
+            st.image(str(img_path), width="stretch")
         else:
             st.warning("图表文件不存在，请先运行对应研究脚本。")
 
@@ -566,7 +566,7 @@ with tab_research:
     with sub2:
         deep_path = _IMG_DIR / "factor_deep_analysis.png"
         if deep_path.exists():
-            st.image(str(deep_path), use_container_width=True)
+            st.image(str(deep_path), width="stretch")
         else:
             st.warning("请先运行 scripts/research_factor_analysis.py")
 
@@ -608,7 +608,7 @@ with tab_research:
             yaxis_title="ICIR",
             hovermode="x unified",
         )
-        st.plotly_chart(fig_decay, use_container_width=True)
+        st.plotly_chart(fig_decay, width="stretch")
 
     with sub3:
         regime_data = {
@@ -639,7 +639,7 @@ with tab_research:
             fig_regime_bar.update_layout(
                 title="分市场环境 IC 均值", barmode="group", yaxis_title="IC 均值"
             )
-            st.plotly_chart(fig_regime_bar, use_container_width=True)
+            st.plotly_chart(fig_regime_bar, width="stretch")
 
         with col_b:
             st.markdown("""

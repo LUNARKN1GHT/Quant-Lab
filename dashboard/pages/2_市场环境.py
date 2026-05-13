@@ -88,7 +88,7 @@ with tab_regime:
             color=counts.index,
             color_discrete_map=_REGIME_COLOR,
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width="stretch")
 
     with col_bar:
         st.subheader("各年度状态占比")
@@ -117,7 +117,7 @@ with tab_regime:
             xaxis_title="年份",
             yaxis_title="占比",
         )
-        st.plotly_chart(fig_yearly, use_container_width=True)
+        st.plotly_chart(fig_yearly, width="stretch")
 
     st.subheader("近 120 日市场状态")
     index_close = close.mean(axis=1).tail(120)
@@ -146,7 +146,7 @@ with tab_regime:
     fig_line.update_layout(
         xaxis_title="日期", yaxis_title="价格", hovermode="x unified"
     )
-    st.plotly_chart(fig_line, use_container_width=True)
+    st.plotly_chart(fig_line, width="stretch")
 
 # Tab 2：行业轮动
 with tab_sector:
@@ -208,7 +208,7 @@ with tab_sector:
             height=250,
             margin=dict(t=20, b=20),
         )
-        st.plotly_chart(fig_regime_sec, use_container_width=True)
+        st.plotly_chart(fig_regime_sec, width="stretch")
 
         # RS 热力图
         st.subheader("行业 RS 热力图（近 12 个月）")
@@ -222,7 +222,7 @@ with tab_sector:
             aspect="auto",
             labels={"color": "RS"},
         )
-        st.plotly_chart(fig_heat, use_container_width=True)
+        st.plotly_chart(fig_heat, width="stretch")
 
         # 当前 RS 排名
         st.subheader("当前 RS 排名")
@@ -239,7 +239,7 @@ with tab_sector:
         )
         fig_rs_bar.add_vline(x=1, line_dash="dash", line_color="gray")
         fig_rs_bar.update_layout(xaxis_title="RS（>1 强于基准）", height=500)
-        st.plotly_chart(fig_rs_bar, use_container_width=True)
+        st.plotly_chart(fig_rs_bar, width="stretch")
 
         # 超配/低配建议
         st.subheader("超配/低配建议")
@@ -253,7 +253,7 @@ with tab_sector:
                     "综合排名": "{:.1f}",
                 }
             ),
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.info(
@@ -289,7 +289,7 @@ with tab_macro:
         fig_score.update_layout(
             xaxis_title="日期", yaxis_title="景气度得分", hovermode="x unified"
         )
-        st.plotly_chart(fig_score, use_container_width=True)
+        st.plotly_chart(fig_score, width="stretch")
 
         # 各指标走势（2×2 子图）
         st.subheader("各宏观指标走势")
@@ -315,7 +315,7 @@ with tab_macro:
                 col=col_idx + 1,
             )
         fig_sub.update_layout(height=500, hovermode="x unified")
-        st.plotly_chart(fig_sub, use_container_width=True)
+        st.plotly_chart(fig_sub, width="stretch")
 
         # 滞后相关性
         st.subheader("宏观指标与大盘的滞后相关性")
@@ -336,7 +336,7 @@ with tab_macro:
             yaxis_title="相关系数",
             hovermode="x unified",
         )
-        st.plotly_chart(fig_lag, use_container_width=True)
+        st.plotly_chart(fig_lag, width="stretch")
 
         # 最新宏观快照
         st.subheader("最新宏观快照")
