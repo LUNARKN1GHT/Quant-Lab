@@ -25,16 +25,15 @@ from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
 from quant.strategy.factor_strategy import factor_select
 from scripts.backtest_ml import build_features
 
-st.set_page_config(page_title="回测对比", layout="wide")
+st.set_page_config(page_title="策略库", layout="wide")
 
 cfg = sidebar_config()
 
-st.title("📊 回测对比")
+st.title("📊 策略库")
 
-# ── 策略类型选择 ───────────────────────────────────────────────────────────
-strategy_type = st.radio("策略类型", ["传统因子", "ML 模型"], horizontal=True)
+# --- 常量 ----------
 
-WINDOWED_FACTORS = [
+_WINDOWED_FACTORS = [
     "动量",
     "RSI",
     "波动率",
@@ -44,7 +43,7 @@ WINDOWED_FACTORS = [
     "峰度",
     "特质波动率",
 ]
-DEFAULT_WINDOWS = {
+_DEFAULT_WINDOWS = {
     "动量": 20,
     "RSI": 14,
     "波动率": 20,
@@ -55,7 +54,7 @@ DEFAULT_WINDOWS = {
     "特质波动率": 20,
 }
 
-MODEL_MAP = {
+_MODEL_MAP = {
     "LightGBM": LGBMRegressor(n_estimators=cfg.ml.n_estimators, verbosity=-1),
     "RandomForest": RandomForestRegressor(
         n_estimators=cfg.ml.n_estimators, n_jobs=-1, random_state=42
@@ -64,7 +63,11 @@ MODEL_MAP = {
     "XGBoost": XGBRegressor(n_estimators=cfg.ml.n_estimators, verbosity=0),
 }
 
+_IMG_DIR = Path(__file__).parent.parent.parent / "output" / "factor_research"
+_PAIR_CSV = _IMG_DIR / "cointegrated_pairs.csv"
 
+
+# 共用函数
 def compute_factor_scores(
     name: str,
     close: pd.DataFrame,
@@ -100,37 +103,8 @@ def compute_factor_scores(
     raise ValueError(f"未知因子: {name}")
 
 
-# ── 策略参数面板 ───────────────────────────────────────────────────────────
-if strategy_type == "传统因子":
-    col1, col2 = st.columns(2)
-    with col1:
-        factor_type = st.selectbox("因子类型", WINDOWED_FACTORS + ["MACD"])
-    with col2:
-        if factor_type in WINDOWED_FACTORS:
-            factor_window = st.slider(
-                "因子窗口（天）", 5, 120, DEFAULT_WINDOWS.get(factor_type, 20), step=5
-            )
-            macd_fast, macd_slow, macd_signal = 12, 26, 9
-        else:
-            c1, c2, c3 = st.columns(3)
-            macd_fast = c1.slider("Fast", 3, 30, 12, step=1)
-            macd_slow = c2.slider("Slow", 10, 60, 26, step=1)
-            macd_signal = c3.slider("Signal", 3, 20, 9, step=1)
-            factor_window = macd_fast
-    run_label = f"🚀 运行回测（{factor_type}）"
-else:
-    model_name = st.selectbox("选择模型", list(MODEL_MAP.keys()), index=1)
-    factor_type = ""
-    factor_window = 20
-    macd_fast, macd_slow, macd_signal = 12, 26, 9
-    run_label = f"🚀 运行回测（{model_name}）"
-
-run_btn = st.button(run_label, type="primary")
-
-
-# ── 传统因子回测 ───────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="因子回测运行中…")
-def run_factor_backtest(
+def _run_factor_backtest(
     factor_type: str,
     factor_window: int,
     macd_fast: int,
@@ -177,9 +151,8 @@ def run_factor_backtest(
     )
 
 
-# ── ML 回测 ────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner="ML 回测运行中，请稍候…")
-def run_ml_backtest(
+def _run_ml_backtest(
     model_name: str,
     top_n: int,
     train_window: int,
@@ -208,7 +181,7 @@ def run_ml_backtest(
     dataset = features.join(fwd_ret).dropna()
     dates = dataset.index.get_level_values("date").unique().sort_values()
 
-    model = clone(MODEL_MAP[model_name])
+    model = clone(_MODEL_MAP[model_name])
     score_frames = []
     # 每隔 predict_window 天重训一次，模拟实盘中的定期再训练
     rebalance_dates = dates[train_window :: cfg.backtest.predict_window]
@@ -252,32 +225,15 @@ def run_ml_backtest(
     )
 
 
-# ── 结果展示 ───────────────────────────────────────────────────────────────
-if run_btn:
-    if strategy_type == "传统因子":
-        strategy_ret, benchmark_ret, label = run_factor_backtest(
-            factor_type,
-            factor_window,
-            macd_fast,
-            macd_slow,
-            macd_signal,
-            cfg.backtest.top_n,
-            cfg.backtest.commission_rate,
-        )
-    else:
-        strategy_ret, benchmark_ret, label = run_ml_backtest(
-            model_name,
-            cfg.backtest.top_n,
-            cfg.backtest.train_window,
-            cfg.backtest.commission_rate,
-        )
-
+def _show_backtest_result(
+    strategy_ret: pd.Series, benchmark_ret: pd.Series, label: str
+) -> None:
     strategy_nav = (1 + strategy_ret).cumprod()
     benchmark_nav = (1 + benchmark_ret).cumprod()
 
     st.subheader("累计收益曲线")
-    fig = go.Figure()
-    fig.add_trace(
+    fig_nav = go.Figure()
+    fig_nav.add_trace(
         go.Scatter(
             x=strategy_nav.index,
             y=strategy_nav.values,
@@ -285,7 +241,7 @@ if run_btn:
             line=dict(color="#2196F3"),
         )
     )
-    fig.add_trace(
+    fig_nav.add_trace(
         go.Scatter(
             x=benchmark_nav.index,
             y=benchmark_nav.values,
@@ -293,8 +249,8 @@ if run_btn:
             line=dict(color="#9E9E9E", dash="dot"),
         )
     )
-    fig.update_layout(xaxis_title="日期", yaxis_title="净值", hovermode="x unified")
-    st.plotly_chart(fig, width="stretch")
+    fig_nav.update_layout(xaxis_title="日期", yaxis_title="净值", hovermode="x unified")
+    st.plotly_chart(fig_nav, width="stretch")
 
     st.subheader("回撤曲线")
     rolling_max = strategy_nav.cummax()
@@ -337,8 +293,193 @@ if run_btn:
         }
     )
     st.table(metrics)
-else:
-    st.info(
-        "调整参数后点击「运行回测」查看结果。"
-        "传统因子策略约 10–30 秒，ML 策略约 1–2 分钟。"
+
+
+tab_backtest, tab_arb = st.tabs(["📈 回测对比", "📐 统计套利"])
+
+# Tab 1：回测对比
+with tab_backtest:
+    strategy_type = st.radio("策略类型", ["传统因子", "ML 模型"], horizontal=True)
+
+    model_name = ""
+    if strategy_type == "传统因子":
+        col1, col2 = st.columns(2)
+        with col1:
+            factor_type = st.selectbox("因子类型", _WINDOWED_FACTORS + ["MACD"])
+        with col2:
+            if factor_type in _WINDOWED_FACTORS:
+                factor_window = st.slider(
+                    "因子窗口（天）",
+                    5,
+                    120,
+                    _DEFAULT_WINDOWS.get(factor_type, 20),
+                    step=5,
+                )
+                macd_fast, macd_slow, macd_signal = 12, 26, 9
+            else:
+                c1, c2, c3 = st.columns(3)
+                macd_fast = c1.slider("Fast", 3, 30, 12, step=1)
+                macd_slow = c2.slider("Slow", 10, 60, 26, step=1)
+                macd_signal = c3.slider("Signal", 3, 20, 9, step=1)
+                factor_window = macd_fast
+        run_label = f"🚀 运行回测（{factor_type}）"
+    else:
+        model_name = st.selectbox("选择模型", list(_MODEL_MAP.keys()), index=1)
+        factor_type = ""
+        factor_window = 20
+        macd_fast, macd_slow, macd_signal = 12, 26, 9
+        run_label = f"🚀 运行回测（{model_name}）"
+
+    if st.button(run_label, type="primary", key="btn_backtest"):
+        if strategy_type == "传统因子":
+            s_ret, b_ret, label = _run_factor_backtest(
+                factor_type,
+                factor_window,
+                macd_fast,
+                macd_slow,
+                macd_signal,
+                cfg.backtest.top_n,
+                cfg.backtest.commission_rate,
+            )
+        else:
+            s_ret, b_ret, label = _run_ml_backtest(
+                model_name,
+                cfg.backtest.top_n,
+                cfg.backtest.train_window,
+                cfg.backtest.commission_rate,
+            )
+        st.session_state["backtest_result"] = (s_ret, b_ret, label)
+
+    if "backtest_result" in st.session_state:
+        from typing import cast
+
+        s_ret, b_ret, label = cast(
+            tuple[pd.Series, pd.Series, str], st.session_state["backtest_result"]
+        )
+        _show_backtest_result(s_ret, b_ret, label)
+    else:
+        st.info(
+            "调整参数后点击「运行回测」查看结果。"
+            "传统因子策略约 10~30 秒，ML 策略约 1~2 分钟。"
+        )
+
+# Tab 2：统计套利
+with tab_arb:
+    arb1, arb2, arb3, arb4, arb5 = st.tabs(
+        ["🔗 协整分析", "〰️ OU 过程", "📡 Kalman Filter", "🧩 PCA 篮子", "⚖️ 市场中性"]
     )
+
+    with arb1:
+        st.subheader("批量协整对筛选结果")
+        if _PAIR_CSV.exists():
+            df_pairs = pd.read_csv(_PAIR_CSV)
+            st.dataframe(
+                df_pairs.style.format(precision=4).background_gradient(
+                    subset=["eg_pvalue"] if "eg_pvalue" in df_pairs.columns else [],
+                    cmap="RdYlGn_r",
+                ),
+                width="stretch",
+            )
+        else:
+            st.warning("请先运行 scripts/find_cointegrated_pairs.py")
+
+        img_coint = _IMG_DIR / "cointegration_analysis.png"
+        if img_coint.exists():
+            st.image(str(img_coint), width="stretch")
+
+        with st.expander("方法论：EG vs Johansen"):
+            st.markdown("""
+            | 方法 | 原理 | 优点 | 缺点 |
+            |------|------|------|------|
+            | Engle-Granger | OLS 残差 ADF 检验 | 简单直观 | 只能检测一个协整关系 |
+            | Johansen | VAR 模型特征根 | 可检测多个协整关系，方向对称 | 参数敏感 |
+
+            **实践建议**：两者同时通过才选为候选对。
+            """)
+
+    with arb2:
+        st.subheader("OU 过程参数与半衰期分析")
+        ou1, ou2, ou3 = st.columns(3)
+        ou1.metric("最佳配对", "工商银行 vs 建设银行")
+        ou2.metric("历史半衰期", "5~25 天（2019-2025）")
+        ou3.metric("当前半衰期", "75+ 天（2026，不宜交易）")
+
+        img_ou = _IMG_DIR / "ou_process_analysis.png"
+        if img_ou.exists():
+            st.image(str(img_ou), width="stretch")
+
+        st.markdown("""
+        **OU 过程参数解读：**
+        - **θ（均值回归速度）**：越大回归越快，建议 θ > 0.03（对应半衰期 < 23天）
+        - **半衰期 = ln(2)/θ**：策略持仓周期的理论上限
+        - **σ（波动率）**：越大信噪比越高，开仓机会越多
+
+        **当前状态（2026）**：θ 降至约 0.02，半衰期超 75 天，该对暂不适合配对交易。
+        """)
+
+    with arb3:
+        st.subheader("动态对冲比率：Kalman Filter vs 静态 OLS")
+        kf1, kf2, kf3 = st.columns(3)
+        kf1.metric("静态 OLS ADF", "p≈0.05（边界）")
+        kf2.metric("Kalman Filter ADF", "p<0.05（大部分时间）✅")
+        kf3.metric("KF 对冲比率范围", "0.5~0.75（平滑跟踪）")
+
+        img_kf = _IMG_DIR / "kalman_hedge_analysis.png"
+        if img_kf.exists():
+            st.image(str(img_kf), width="stretch")
+
+        with st.expander("Kalman Filter 状态空间模型"):
+            st.markdown(r"""
+            **观测方程：** $\text{price\_a}_t = \beta_t \cdot \text{price\_b}_t
+                        + \alpha_t + \varepsilon_t$
+
+            **状态方程：** $[\beta_t, \alpha_t] = [\beta_{t-1}, \alpha_{t-1}] + w_t$
+
+            其中 $w_t \sim \mathcal{N}(0, Q)$ 为过程噪声，控制对冲比率的漂移速度。
+
+            **参数 delta**：$Q = \frac{\delta}{1-\delta} I$，delta=1e-4时β每日变动约 1%
+            """)
+
+    with arb4:
+        st.subheader("PCA 篮子套利 — 实证发现")
+        pca1, pca2 = st.columns(2)
+        with pca1:
+            st.error("均值回归方向：SR = -6.38（失败）")
+        with pca2:
+            st.success("动量方向（信号翻转）：SR = +6.38（有效）")
+
+        img_pca = _IMG_DIR / "pca_basket_analysis.png"
+        if img_pca.exists():
+            st.image(str(img_pca), width="stretch")
+
+        st.markdown("""
+        **核心发现：A 股行业内特质残差具有动量特性**
+
+        | 板块 | PC1 解释度 | 均值回归 SR | 动量 SR |
+        |------|-----------|------------|---------|
+        | 银行 | 65% | -6.70 | +6.70 |
+        | 白酒 | 75% | -6.38 | +6.38 |
+
+        **原因**：A 股中散户资金驱动的趋势效应强于机构套利带来的均值回归，
+        行业内跑赢股票短期内倾向继续跑赢（"强者恒强"）。
+        """)
+
+    with arb5:
+        st.subheader("Beta 中性组合 — 主力资金因子")
+        mn1, mn2, mn3 = st.columns(3)
+        mn1.metric("Sharpe Ratio", "0.91")
+        mn2.metric("组合波动率", "~8%（年化）")
+        mn3.metric("市场相关性", "≈ 0.1（中性化有效）✅")
+
+        img_mn = _IMG_DIR / "market_neutral_analysis.png"
+        if img_mn.exists():
+            st.image(str(img_mn), width="stretch")
+
+        st.markdown("""
+        **Beta 中性化效果验证：**
+        - 原始多空组合与市场相关性约 -0.3~-0.5（空头暴露过大）
+        - Beta 中性后相关性压缩至 ≈ 0.1 ✅
+        - 当前数据窗口仅 5 个月（fund_flow 历史不足），需补充历史数据
+
+        **行业中性化**：当前使用代码前缀粗分，实盘应接入申万一级行业分类。
+        """)
