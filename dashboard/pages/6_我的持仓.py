@@ -17,6 +17,7 @@ from quant.factor.bollinger import bollinger_position
 from quant.factor.ma_bias import ma_bias
 from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
+from quant.fund.advisor_signal import fund_position_advice, latest_signal
 from quant.fund.dca import (
     PERIOD_DAYS,
     PERIOD_LABELS,
@@ -24,7 +25,6 @@ from quant.fund.dca import (
     next_trading_day,
     save_dca_plans,
 )
-from quant.fund.advisor_signal import fund_position_advice, latest_signal
 from quant.fund.ledger import (
     compute_holdings,
     load_transactions,
@@ -167,7 +167,7 @@ with tab_overview:
     else:
         # 合并最新净值
         rows = []
-        for _, h in holdings.iterrows():
+        for _, h in holdings.iterrows():  # type: ignore
             sym = h["symbol"]
             latest = (
                 nav[sym].dropna().iloc[-1]
@@ -791,7 +791,7 @@ with tab_dca:
                 auto_nav = float(series[ts])
             elif ts <= series.index[-1]:
                 val = series.asof(ts)
-                if pd.notna(val):
+                if pd.notna(val):  # type: ignore
                     auto_nav = float(val)  # type: ignore[arg-type]
 
         exec_nav = col_nav.number_input(
@@ -871,7 +871,7 @@ with tab_advice:
             )
             sig_c3.metric(
                 "信号日期",
-                str(signal["date"].date()),
+                str(signal["date"].date()),  # type: ignore
             )
             sig_c4.metric(
                 "宏观乘数",
@@ -916,7 +916,7 @@ with tab_advice:
 
             # 构建含 mkt 的持仓 DataFrame
             advice_rows = []
-            for _, h in holdings.iterrows():
+            for _, h in holdings.iterrows():  # type: ignore
                 sym = h["symbol"]
                 if sym not in nav.columns:
                     continue
@@ -959,7 +959,7 @@ with tab_advice:
         st.caption("基于持仓基金 NAV 走势的技术面扫描")
 
         holding_signals = []
-        for _, h in holdings.iterrows():
+        for _, h in holdings.iterrows():  # type: ignore
             sym = h["symbol"]
             if sym not in nav.columns:
                 continue
@@ -1023,7 +1023,7 @@ with tab_advice:
         warnings_found = False
 
         pos_rows = []
-        for _, h in holdings.iterrows():
+        for _, h in holdings.iterrows():  # type: ignore
             sym = h["symbol"]
             if sym not in nav.columns:
                 continue
@@ -1045,7 +1045,7 @@ with tab_advice:
             pos_df = pd.DataFrame(pos_rows)
             total_mkt = pos_df["mkt"].sum()
 
-            for _, p in pos_df.iterrows():
+            for _, p in pos_df.iterrows():  # type: ignore
                 weight = p["mkt"] / total_mkt if total_mkt > 0 else 0
 
                 if weight > 0.5:
