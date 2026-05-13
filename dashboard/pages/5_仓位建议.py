@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -26,10 +27,19 @@ def get_macro_score() -> pd.Series:
     return composite_index(macro_df)
 
 
+@st.cache_data(show_spinner="加载行业数据...")
+def _load_sector_signals() -> pd.DataFrame:
+    sector_close = load_sector_close()
+    benchmark = sector_close.mean(axis=1)
+    rs = calc_rs(sector_close=sector_close, benchmark=benchmark, window=20)
+    rs_momentum = calc_rs_momentum(rs=rs, lookback=20)
+    return get_suggestions(rs.iloc[-1], rs_momentum, top_n=3)
+
+
 macro_score = get_macro_score()
 result = compute_position(close, cfg, macro_score=macro_score)
 
-# 最新建议卡片
+# --- 最新建议卡片 ----------
 latest = result.iloc[-1]
 st.subheader(f"最新建议 ({result.index[-1].date()})")
 col1, col2, col3, col4 = st.columns(4)
@@ -43,7 +53,7 @@ col4.metric(
 )
 
 
-# 历史仓位走势
+# --- 历史仓位走势 ----------
 st.subheader("历史仓位走势")
 fig = go.Figure()
 fig.add_trace(
@@ -88,27 +98,21 @@ fig.update_layout(
 )
 st.plotly_chart(fig, width="stretch")
 
-# Regime 切换记录
+# --- Regime 切换记录 ----------
 st.subheader("Regime 切换记录（近60日）")
 recent = result.tail(60)
 changes = recent[recent["regime"] != recent["regime"].shift()][["regime", "position"]]
 st.dataframe(changes.style.format({"position": "{:.0%}"}), width="stretch")
 
-# 行业建议
+# --- 行业超配建议 -----------
 st.subheader("当前行业超配建议")
 st.caption("基于申万行业 RS + 动量，首次加载约需 1~2 分钟")
 
-load_sector_btn = st.button("📥 加载行业信号", key="sector_btn")
-if load_sector_btn:
-    sector_close = load_sector_close()
-    benchmark = sector_close.mean(axis=1)
-    rs = calc_rs(sector_close, benchmark, window=20)
-    rs_momentum = calc_rs_momentum(rs, lookback=20)
-    suggestions = get_suggestions(rs.iloc[-1], rs_momentum, top_n=3)
-    st.session_state["sector_suggestions"] = suggestions
+if st.button("📥 加载行业信号", key="sector_btn"):
+    st.session_state["sector_suggestions"] = _load_sector_signals()
 
 if "sector_suggestions" in st.session_state:
-    sug = st.session_state["sector_suggestions"]
+    sug = cast(pd.DataFrame, st.session_state["sector_suggestions"])
     overweight = sug[sug["建议"] == "超配 ▲"][["RS", "RS动量", "建议"]]
     underweight = sug[sug["建议"] == "低配 ▼"][["RS", "RS动量", "建议"]]
     c1, c2 = st.columns(2)
@@ -116,11 +120,11 @@ if "sector_suggestions" in st.session_state:
         st.markdown("**超配行业**")
         st.dataframe(
             overweight.style.format({"RS": "{:.3f}", "RS动量": "{:.4f}"}),
-            width="stretch",
+            use_container_width=True,
         )
     with c2:
         st.markdown("**低配行业**")
         st.dataframe(
             underweight.style.format({"RS": "{:.3f}", "RS动量": "{:.4f}"}),
-            width="stretch",
+            use_container_width=True,
         )
