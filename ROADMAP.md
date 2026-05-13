@@ -432,13 +432,13 @@
 
 **页面合并：**
 
-- [ ] 0. 数据中心：`0_data_manager` 增强，加数据健康监控（缓存覆盖、最新日期、缺失字段）
-- [ ] 1. 驾驶舱（首页）：重写 `app.py`，一屏展示 Regime + Top 行业 + 宏观景气 + 建议仓位 + 因子排行
-- [ ] 2. 市场环境：合并 `2_market_state` + `6_sector_rotation` + `7_macro_factors` 为 tab
-- [ ] 3. 因子工坊：合并 `4_factor_analyze` + `5_params_optimize` + `8_factor_research_adv` 为 tab
-- [ ] 4. 策略库：合并 `3_backtest_compare` + `9_stat_arb` 为 tab，加入多因子选股、配对交易统一视角
-- [ ] 5. 仓位建议：保留 `1_position_advise`，加信号权重可调控件
-- [ ] 6. 我的持仓：`10_my_portfolio` 增强，加"建议 vs 实际"对账 + 基金风格回归
+- [x] 0. 数据中心：`0_data_manager` 增强，加数据健康监控（缓存覆盖、最新日期、缺失字段）
+- [x] 1. 驾驶舱（首页）：重写 `app.py`，一屏展示 Regime + Top 行业 + 宏观景气 + 建议仓位 + 因子排行
+- [x] 2. 市场环境：合并 `2_market_state` + `6_sector_rotation` + `7_macro_factors` 为 tab
+- [x] 3. 因子工坊：合并 `4_factor_analyze` + `5_params_optimize` + `8_factor_research_adv` 为 tab
+- [x] 4. 策略库：合并 `3_backtest_compare` + `9_stat_arb` 为 tab，加入多因子选股、配对交易统一视角
+- [x] 5. 仓位建议：保留 `1_position_advise`，加信号权重可调控件
+- [x] 6. 我的持仓：`10_my_portfolio` 增强，加"建议 vs 实际"对账 + 基金风格回归
 - [ ] 7. 风险报告（新建）：Brinson 归因 / 回撤分布 / VaR-CVaR / 策略风险报告导出
 
 **学习点：** Streamlit 多页 vs Tab 组织、信息架构（一屏汇总 vs 详情下钻）
