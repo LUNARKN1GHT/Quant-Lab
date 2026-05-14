@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
+from quant.config import SignalWeightsConfig
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pandas as pd
@@ -36,17 +38,37 @@ def _load_sector_signals() -> pd.DataFrame:
     return get_suggestions(rs.iloc[-1], rs_momentum, top_n=3)
 
 
+# --- 权重调节 ------------
+st.title("⚖️ 仓位建议")
+with st.expander("🎛️ 信号权重调整（拖动滑块实时生效）", expanded=False):
+    col_w1, col_w2, col_w3, col_w4 = st.columns(4)
+    w_regime = col_w1.slider("Regime 权重", 0.0, 1.0, cfg.signal_weights.regime, 0.05)
+    w_vol = col_w2.slider("波动率权重", 0.0, 1.0, cfg.signal_weights.vol, 0.05)
+    w_macro = col_w3.slider("宏观权重", 0.0, 1.0, cfg.signal_weights.macro, 0.05)
+    w_sector = col_w4.slider("行业权重", 0.0, 1.0, cfg.signal_weights.sector, 0.05)
+    total = w_regime + w_vol + w_macro + w_sector
+    if total == 0:
+        st.error("权重之和不能为 0")
+        st.stop()
+    st.caption(f"权重之和: {total:.2f} (自动归一化，无需手动调整)")
+
+weights = SignalWeightsConfig(
+    regime=w_regime, vol=w_vol, macro=w_macro, sector=w_sector
+)
+
+# --- 数据加载 ------------
 macro_score = get_macro_score()
-result = compute_position(close, cfg, macro_score=macro_score)
+result = compute_position(close, cfg, macro_score=macro_score, signal_weights=weights)
 
 # --- 最新建议卡片 ----------
 latest = result.iloc[-1]
 st.subheader(f"最新建议 ({result.index[-1].date()})")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Regime 仓位", f"{latest['regime_scale']:.0%}")
-col2.metric("波动率仓位", f"{latest['vol_scale']:.0%}")
-col3.metric("宏观乘数", f"{latest['macro_multiplier']:.2f}x")
-col4.metric(
+col1, col2, col3, col4, col5 = st.columns(5)
+col1.metric("Regime 信号", f"{latest['regime_signal']:.0%}")
+col2.metric("波动率信号", f"{latest['vol_signal']:.0%}")
+col3.metric("宏观信号", f"{latest['macro_signal']:.2f}x")
+col4.metric("行业信号", f"{latest['sector_signal']: .0%}")
+col5.metric(
     "最终建议仓位",
     f"{latest['position']:.0%}",
     delta=f"{latest['position'] - result['position'].iloc[-2]:.0%}",
@@ -69,24 +91,24 @@ fig.add_trace(
 fig.add_trace(
     go.Scatter(
         x=result.index,
-        y=result["regime_scale"],
-        name="Regime分量",
+        y=result["regime_signal"],
+        name="Regime信号",
         line=dict(dash="dot", color="#FF9800"),
     )
 )
 fig.add_trace(
     go.Scatter(
         x=result.index,
-        y=result["vol_scale"],
-        name="波动率分量",
+        y=result["vol_signal"],
+        name="波动率信号",
         line=dict(dash="dot", color="#9C27B0"),
     )
 )
 fig.add_trace(
     go.Scatter(
         x=result.index,
-        y=result["macro_multiplier"],
-        name="宏观乘数",
+        y=result["macro_signal"],
+        name="宏观信号",
         line=dict(dash="dot", color="#4CAF50"),
     )
 )

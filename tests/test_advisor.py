@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from quant.advisor.position import compute_position, vol_target_scale
-from quant.config import Config
+from quant.config import Config, SignalWeightsConfig
 
 
 def _make_close(n: int = 200, seed: int = 42) -> pd.DataFrame:
@@ -41,37 +41,35 @@ def test_compute_position_structure():
     close = _make_close()
     cfg = Config()
     result = compute_position(close, cfg)
-    assert isinstance(result, pd.DataFrame)
     expected_cols = {
         "regime",
-        "regime_scale",
-        "vol_scale",
-        "macro_multiplier",
+        "regime_signal",
+        "vol_signal",
+        "macro_signal",
+        "sector_signal",
         "position",
     }
     assert expected_cols.issubset(set(result.columns))
     assert len(result) == len(close)
 
 
-def test_compute_position_no_macro_multiplier_is_one():
+def test_compute_position_no_macro_is_neutral():
     close = _make_close()
     cfg = Config()
     result = compute_position(close, cfg)
-    assert (result["macro_multiplier"] == 1.0).all()
+    # 无宏观数据时，宏观信号应为中性值 0.5
+    assert (result["macro_signal"] == 0.5).all()
 
 
 def test_compute_position_with_macro():
     close = _make_close()
     cfg = Config()
-    macro_score = pd.Series(
-        np.linspace(-2, 2, len(close)),
-        index=close.index,
-    )
+    macro_score = pd.Series(np.linspace(-2, 2, len(close)), index=close.index)
     result = compute_position(close, cfg, macro_score=macro_score)
-    mm = result["macro_multiplier"].dropna()
-    # 宏观乘数由 clip(-2,2) 限制，范围应在 [0.6, 1.4]
-    assert (mm >= 0.6).all()
-    assert (mm <= 1.4).all()
+    ms = result["macro_signal"].dropna()
+    # z-score [-2, 2] → 信号 [0, 1]
+    assert (ms >= 0.0).all()
+    assert (ms <= 1.0).all()
 
 
 def test_compute_position_clipped():
@@ -81,3 +79,16 @@ def test_compute_position_clipped():
     valid = result["position"].dropna()
     assert (valid >= cfg.advisor.min_position).all()
     assert (valid <= cfg.advisor.max_position).all()
+
+
+def test_compute_position_custom_weights():
+    close = _make_close()
+    cfg = Config()
+    # 将权重全部给 regime，仓位应严格等于 regime_signal
+    w = SignalWeightsConfig(regime=1.0, vol=0.0, macro=0.0, sector=0.0)
+    result = compute_position(close, cfg, signal_weights=w)
+    valid = result["position"].dropna()
+    regime_valid = result["regime_signal"].dropna()
+    pd.testing.assert_series_equal(
+        valid, regime_valid.clip(0.0, 1.0), check_names=False
+    )
