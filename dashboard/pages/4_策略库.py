@@ -21,9 +21,39 @@ from quant.factor.momentum import momentum
 from quant.factor.rsi import rsi
 from quant.factor.skewness import kurtosis, skewness
 from quant.factor.volatility import volatility
+from quant.portfolio.optimizer import optimize, portfolio_stats
 from quant.risk.metrics import calmar, max_drawdown, sharpe, sortino
+from quant.sector.loader import load_sector_close
 from quant.strategy.factor_strategy import factor_select
 from scripts.backtest_ml import build_features
+
+if "portfolio_result" in st.session_state:
+    rows, assets = st.session_state["portfolio_result"]
+    summary_df = pd.DataFrame(rows).set_index("方法")
+
+    st.markdown("#### 组合统计指标")
+    st.dataframe(
+        summary_df[["预期收益", "年化波动率", "夏普比率"]].style.format(
+            {"预期收益": "{:.2%}", "年化波动率": "{:.2%}", "夏普比率": "{:.2f}"}
+        ),
+        width="stretch",
+    )
+
+    st.markdown("#### 权重分布")
+    weight_df = summary_df[assets]
+    fig_w = go.Figure()
+    for method_name in weight_df.index:
+        fig_w.add_trace(
+            go.Bar(name=method_name, x=assets, y=weight_df.loc[method_name].values)
+        )
+    fig_w.update_layout(
+        barmode="group",
+        yaxis_tickformat=".0%",
+        height=350,
+        margin=dict(t=10, b=10, l=0, r=0),
+        xaxis_tickangle=-45,
+    )
+    st.plotly_chart(fig_w, width="stretch")
 
 st.set_page_config(page_title="策略库", layout="wide")
 
@@ -295,7 +325,9 @@ def _show_backtest_result(
     st.table(metrics)
 
 
-tab_backtest, tab_arb = st.tabs(["📈 回测对比", "📐 统计套利"])
+tab_backtest, tab_arb, tab_portfolio = st.tabs(
+    ["📈 回测对比", "📐 统计套利", "📊 组合优化"]
+)
 
 # Tab 1：回测对比
 with tab_backtest:
@@ -483,3 +515,74 @@ with tab_arb:
 
         **行业中性化**：当前使用代码前缀粗分，实盘应接入申万一级行业分类。
         """)
+
+# Tab 3: 组合优化
+with tab_portfolio:
+    st.subheader("多资产组合优化")
+    st.caption("基于申万行业 ETF 近期收益估计 μ 和 Σ，对比三种优化方法")
+
+    @st.cache_data(show_spinner="加载行业数据...")
+    def _load_sector_returns(lookback: int) -> pd.DataFrame:
+        sc = load_sector_close()
+        return sc.pct_change().dropna().tail(lookback)
+
+    col_opt1, col_opt2, col_opt3 = st.columns(3)
+    lookback = col_opt1.selectbox("估计窗口（交易日）", [60, 120, 250], index=1)
+    ra = col_opt2.slider("风险厌恶系数", 0.5, 5.0, 1.0, 0.5)
+    w_max = col_opt3.slider("单资产权重上限", 0.1, 1.0, 0.3, 0.05)
+
+    if st.button("🚀 运行组合优化", type="primary", key="btn_portfolio"):
+        rets = _load_sector_returns(int(lookback))
+        mu_daily = rets.mean().values
+        cov_daily = rets.cov().values
+        mu_ann = mu_daily * 252  # type: ignore
+        cov_ann = cov_daily * 252
+        assets = rets.columns.tolist()
+
+        rows = []
+        for method in ("equal_weight", "mvo", "risk_parity"):
+            w = optimize(mu_ann, cov_ann, method=method, risk_aversion=ra, w_max=w_max)  # type: ignore
+            stats = portfolio_stats(w, mu_ann, cov_ann)  # type: ignore
+            rows.append(
+                {
+                    "方法": {
+                        "equal_weight": "等权",
+                        "mvo": "MVO",
+                        "risk_parity": "风险平价",
+                    }[method],
+                    "预期收益": stats["return"],
+                    "年化波动率": stats["volatility"],
+                    "夏普比率": stats["sharpe"],
+                    **{a: float(wi) for a, wi in zip(assets, w)},
+                }
+            )
+
+        st.session_state["portfolio_result"] = (rows, assets)
+
+    if "portfolio_result" in st.session_state:
+        rows, assets = st.session_state["portfolio_result"]
+        summary_df = pd.DataFrame(rows).set_index("方法")
+
+        st.markdown("#### 组合统计指标")
+        st.dataframe(
+            summary_df[["预期收益", "年化波动率", "夏普比率"]].style.format(
+                {"预期收益": "{:.2%}", "年化波动率": "{:.2%}", "夏普比率": "{:.2f}"}
+            ),
+            width="stretch",
+        )
+
+        st.markdown("#### 权重分布")
+        weight_df = summary_df[assets]
+        fig_w = go.Figure()
+        for method_name in weight_df.index:
+            fig_w.add_trace(
+                go.Bar(name=method_name, x=assets, y=weight_df.loc[method_name].values)
+            )
+        fig_w.update_layout(
+            barmode="group",
+            yaxis_tickformat=".0%",
+            height=350,
+            margin=dict(t=10, b=10, l=0, r=0),
+            xaxis_tickangle=-45,
+        )
+        st.plotly_chart(fig_w, width="stretch")
