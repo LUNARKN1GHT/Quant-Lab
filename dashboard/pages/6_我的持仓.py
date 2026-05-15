@@ -874,9 +874,9 @@ with tab_advice:
                 str(signal["date"].date()),  # type: ignore
             )
             sig_c4.metric(
-                "宏观乘数",
-                f"{signal['macro_multiplier']:.2f}",
-                help="宏观景气高时>1，低时<1；无宏观数据时恒为1.0",
+                "宏观信号",
+                f"{signal['macro_signal']:.0%}",
+                help="宏观景气 z-score 归一化到 [0,1]；无宏观数据时为 0.5（中性）",
             )
 
             with st.expander("信号分解明细"):
@@ -885,17 +885,17 @@ with tab_advice:
                         {
                             "层级": "Regime（市场环境）",
                             "值": signal["regime_label"],
-                            "系数": f"{signal['regime_scale']:.2f}",
+                            "系数": f"{signal['regime_signal']:.0%}",
                         },
                         {
                             "层级": "波动率目标法",
                             "值": "realized_vol → target_vol",
-                            "系数": f"{signal['vol_scale']:.2f}",
+                            "系数": f"{signal['vol_signal']:.0%}",
                         },
                         {
-                            "层级": "宏观景气乘数",
+                            "层级": "宏观景气信号",
                             "值": "PMI / 利率 / M2 综合",
-                            "系数": f"{signal['macro_multiplier']:.2f}",
+                            "系数": f"{signal['macro_signal']:.0%}",
                         },
                         {
                             "层级": "最终建议仓位",
