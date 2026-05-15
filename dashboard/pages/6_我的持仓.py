@@ -1033,7 +1033,7 @@ with tab_advice:
                                 "夏普比率": "{:.2f}",
                             }
                         ),
-                        use_container_width=True,
+                        width="stretch",
                     )
 
                     # 权重对账表（默认按风险平价对账，可切换）
@@ -1058,7 +1058,7 @@ with tab_advice:
                                 "调仓金额": "¥{:+,.2f}",
                             }
                         ),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                     )
 
@@ -1084,7 +1084,7 @@ with tab_advice:
                         margin=dict(t=10, b=10, l=0, r=0),
                         xaxis_tickangle=-30,
                     )
-                    st.plotly_chart(fig_compare, use_container_width=True)
+                    st.plotly_chart(fig_compare, width="stretch")
 
                 st.divider()
 
