@@ -34,6 +34,7 @@ from quant.fund.ledger import (
 )
 from quant.fund.portfolio import load_nav_matrix
 from quant.fund.watchlist import load_watchlist, save_watchlist
+from quant.portfolio.optimizer import optimize, portfolio_stats
 
 st.set_page_config(page_title="我的持仓", layout="wide")
 sidebar_config()
@@ -955,7 +956,188 @@ with tab_advice:
 
             st.divider()
 
-            # ── 因子信号（持仓基金）──────────────────────────────────────────────
+        # --- 持仓组合优化 ----------
+        st.subheader("🎯 持仓组合优化")
+        st.caption("基于持仓基金净值历史估计 μ/Σ，对比三种最优配置方法与当前实盘权重")
+
+        if nav.empty or holdings.empty:
+            st.info("需要持仓和净值数据才能进行组合优化。")
+        else:
+            held_symbols = holdings["symbol"].tolist()
+            nav_held = nav[[s for s in held_symbols if s in nav.columns]].dropna(
+                how="all"
+            )
+
+            if nav_held.shape[1] < 2:
+                st.warning("至少需要 2 只基金才能进行组合优化。")
+            else:
+                opt_c1, opt_c2, opt_c3 = st.columns(3)
+                opt_lookback = opt_c1.selectbox(
+                    "估计窗口（交易日）", [60, 120, 250], index=1, key="opt_lookback"
+                )
+                opt_ra = opt_c2.slider(
+                    "风险厌恶系数（MVO）", 0.5, 5.0, 2.0, 0.5, key="opt_ra"
+                )
+                opt_w_max = opt_c3.slider(
+                    "单基金权重上限", 0.1, 1.0, 0.5, 0.05, key="opt_w_max"
+                )
+
+                if st.button("🚀 运行持仓优化", type="primary", key="btn_holdings_opt"):
+                    rets = nav_held.pct_change().dropna().tail(int(opt_lookback))
+                    if len(rets) < 30:
+                        st.error(f"可用数据点仅 {len(rets)} 条，建议至少 30 条。")
+                    else:
+                        mu_ann = rets.mean().values * 252  # type: ignore
+                        cov_ann = rets.cov().values * 252
+                        assets = rets.columns.tolist()
+
+                        # 当前实盘权重（按市值）
+                        holdings_with_mkt = holdings.copy()
+                        holdings_with_mkt["mkt"] = holdings_with_mkt.apply(
+                            lambda h: (
+                                h["shares"] * nav[h["symbol"]].dropna().iloc[-1]
+                                if h["symbol"] in nav.columns
+                                else 0
+                            ),
+                            axis=1,
+                        )
+                        total_mkt = holdings_with_mkt["mkt"].sum()
+                        current_w = {
+                            h["symbol"]: h["mkt"] / total_mkt if total_mkt > 0 else 0
+                            for _, h in holdings_with_mkt.iterrows()
+                        }
+
+                        # 三种方法
+                        method_map = {
+                            "等权": "equal_weight",
+                            "MVO": "mvo",
+                            "风险平价": "risk_parity",
+                        }
+                        results = {}
+                        for label, method in method_map.items():
+                            w = optimize(
+                                mu_ann,
+                                cov_ann,
+                                method=method,  # type: ignore
+                                risk_aversion=opt_ra,
+                                w_max=opt_w_max,
+                            )
+                            stats = portfolio_stats(w, mu_ann, cov_ann)
+                            results[label] = (w, stats)
+
+                        st.session_state["holdings_opt_result"] = {
+                            "assets": assets,
+                            "current_w": current_w,
+                            "total_mkt": float(total_mkt),
+                            "results": results,
+                            "names": names,
+                        }
+
+                if "holdings_opt_result" in st.session_state:
+                    r = st.session_state["holdings_opt_result"]
+                    assets = r["assets"]
+                    current_w = r["current_w"]
+                    total_mkt = r["total_mkt"]
+                    results = r["results"]
+                    names_map = r["names"]
+
+                    # 统计指标对比
+                    st.markdown("##### 组合统计对比")
+                    stats_df = pd.DataFrame(
+                        {
+                            "方法": list(results.keys()),
+                            "预期年化收益": [s["return"] for _, s in results.values()],
+                            "年化波动率": [
+                                s["volatility"] for _, s in results.values()
+                            ],
+                            "夏普比率": [s["sharpe"] for _, s in results.values()],
+                        }
+                    ).set_index("方法")
+                    st.dataframe(
+                        stats_df.style.format(
+                            {
+                                "预期年化收益": "{:.2%}",
+                                "年化波动率": "{:.2%}",
+                                "夏普比率": "{:.2f}",
+                            }
+                        ),
+                        use_container_width=True,
+                    )
+
+                    # 权重对账表（默认按风险平价对账，可切换）
+                    st.markdown("##### 偏差与调仓建议")
+                    chosen = st.radio(
+                        "对账参考方法",
+                        list(results.keys()),
+                        index=2,
+                        horizontal=True,
+                        key="opt_chosen_method",
+                    )
+                    target_w = results[chosen][0]
+
+                    recon_rows = []
+                    for sym, tgt in zip(assets, target_w):
+                        cur = current_w.get(sym, 0.0)
+                        diff_w = float(tgt) - cur
+                        diff_amt = diff_w * total_mkt
+                        if abs(diff_amt) < total_mkt * 0.02:
+                            action = "⚪ 持有不动"
+                        elif diff_amt > 0:
+                            action = "🟢 建议加仓"
+                        else:
+                            action = "🔴 建议减仓"
+                        recon_rows.append(
+                            {
+                                "基金": names_map.get(sym, sym),
+                                "代码": sym,
+                                "当前权重": cur,
+                                "建议权重": float(tgt),
+                                "权重偏差": diff_w,
+                                "调仓金额": diff_amt,
+                                "操作": action,
+                            }
+                        )
+                    recon_df = pd.DataFrame(recon_rows)
+                    st.dataframe(
+                        recon_df.style.format(
+                            {
+                                "当前权重": "{:.1%}",
+                                "建议权重": "{:.1%}",
+                                "权重偏差": "{:+.1%}",
+                                "调仓金额": "¥{:+,.2f}",
+                            }
+                        ),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                    # 三方法权重并排对比图
+                    st.markdown("##### 权重分布对比")
+                    fig_compare = go.Figure()
+                    asset_labels = [names_map.get(s, s) for s in assets]
+                    fig_compare.add_trace(
+                        go.Bar(
+                            name="当前实盘",
+                            x=asset_labels,
+                            y=[current_w.get(s, 0) for s in assets],
+                        )
+                    )
+                    for label, (w, _) in results.items():  # type: ignore
+                        fig_compare.add_trace(
+                            go.Bar(name=label, x=asset_labels, y=list(w))
+                        )
+                    fig_compare.update_layout(
+                        barmode="group",
+                        yaxis_tickformat=".0%",
+                        height=380,
+                        margin=dict(t=10, b=10, l=0, r=0),
+                        xaxis_tickangle=-30,
+                    )
+                    st.plotly_chart(fig_compare, use_container_width=True)
+
+                st.divider()
+
+        # ── 因子信号（持仓基金）──────────────────────────────────────────────
         st.subheader("持仓基金因子信号")
         st.caption("基于持仓基金 NAV 走势的技术面扫描")
 
