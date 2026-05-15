@@ -33,8 +33,13 @@ from quant.fund.ledger import (
     transaction_returns,
 )
 from quant.fund.portfolio import load_nav_matrix
+from quant.fund.portfolio_opt import (
+    current_weights,
+    estimate_mu_cov,
+    reconcile,
+    run_all_methods,
+)
 from quant.fund.watchlist import load_watchlist, save_watchlist
-from quant.portfolio.optimizer import optimize, portfolio_stats
 
 st.set_page_config(page_title="我的持仓", layout="wide")
 sidebar_config()
@@ -983,51 +988,18 @@ with tab_advice:
                 )
 
                 if st.button("🚀 运行持仓优化", type="primary", key="btn_holdings_opt"):
-                    rets = nav_held.pct_change().dropna().tail(int(opt_lookback))
-                    if len(rets) < 30:
-                        st.error(f"可用数据点仅 {len(rets)} 条，建议至少 30 条。")
+                    try:
+                        mu, cov, assets = estimate_mu_cov(nav_held, int(opt_lookback))
+                    except ValueError as e:
+                        st.error(str(e))
                     else:
-                        mu_ann = rets.mean().values * 252  # type: ignore
-                        cov_ann = rets.cov().values * 252
-                        assets = rets.columns.tolist()
-
-                        # 当前实盘权重（按市值）
-                        holdings_with_mkt = holdings.copy()
-                        holdings_with_mkt["mkt"] = holdings_with_mkt.apply(
-                            lambda h: (
-                                h["shares"] * nav[h["symbol"]].dropna().iloc[-1]
-                                if h["symbol"] in nav.columns
-                                else 0
-                            ),
-                            axis=1,
+                        cur_w, total_mkt = current_weights(holdings, nav)
+                        results = run_all_methods(
+                            mu, cov, risk_aversion=opt_ra, w_max=opt_w_max
                         )
-                        total_mkt = holdings_with_mkt["mkt"].sum()
-                        current_w = {
-                            h["symbol"]: h["mkt"] / total_mkt if total_mkt > 0 else 0
-                            for _, h in holdings_with_mkt.iterrows()
-                        }
-
-                        # 三种方法
-                        method_map = {
-                            "等权": "equal_weight",
-                            "MVO": "mvo",
-                            "风险平价": "risk_parity",
-                        }
-                        results = {}
-                        for label, method in method_map.items():
-                            w = optimize(
-                                mu_ann,
-                                cov_ann,
-                                method=method,  # type: ignore
-                                risk_aversion=opt_ra,
-                                w_max=opt_w_max,
-                            )
-                            stats = portfolio_stats(w, mu_ann, cov_ann)
-                            results[label] = (w, stats)
-
                         st.session_state["holdings_opt_result"] = {
                             "assets": assets,
-                            "current_w": current_w,
+                            "current_w": cur_w,
                             "total_mkt": float(total_mkt),
                             "results": results,
                             "names": names,
@@ -1074,30 +1046,9 @@ with tab_advice:
                         key="opt_chosen_method",
                     )
                     target_w = results[chosen][0]
-
-                    recon_rows = []
-                    for sym, tgt in zip(assets, target_w):
-                        cur = current_w.get(sym, 0.0)
-                        diff_w = float(tgt) - cur
-                        diff_amt = diff_w * total_mkt
-                        if abs(diff_amt) < total_mkt * 0.02:
-                            action = "⚪ 持有不动"
-                        elif diff_amt > 0:
-                            action = "🟢 建议加仓"
-                        else:
-                            action = "🔴 建议减仓"
-                        recon_rows.append(
-                            {
-                                "基金": names_map.get(sym, sym),
-                                "代码": sym,
-                                "当前权重": cur,
-                                "建议权重": float(tgt),
-                                "权重偏差": diff_w,
-                                "调仓金额": diff_amt,
-                                "操作": action,
-                            }
-                        )
-                    recon_df = pd.DataFrame(recon_rows)
+                    recon_df = reconcile(
+                        assets, target_w, current_w, total_mkt, name_map=names_map
+                    )
                     st.dataframe(
                         recon_df.style.format(
                             {
