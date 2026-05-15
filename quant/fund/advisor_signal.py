@@ -71,9 +71,9 @@ def latest_signal(
         "regime": regime_val,
         "regime_label": label,
         "regime_emoji": emoji,
-        "regime_scale": float(latest["regime_scale"]),
-        "vol_scale": float(latest["vol_scale"]),
-        "macro_multiplier": float(latest["macro_multiplier"]),
+        "regime_signal": float(latest["regime_signal"]),
+        "vol_signal": float(latest["vol_signal"]),
+        "macro_signal": float(latest["macro_signal"]),
         "position": float(latest["position"]),
         "date": result_df.dropna().index[-1],
     }

@@ -454,16 +454,16 @@
 
 **组合优化：**
 
-- [ ] 实现 `quant/portfolio/optimizer.py`：均值方差（MVO）求解器，加约束（权重上下限、行业暴露）
-- [ ] 实现 Risk Parity：基于风险贡献相等的权重分配
-- [ ] 实现 Black-Litterman：把主观观点（如行业超配）融入 MVO 先验
-- [ ] 三种方法在 Dashboard "策略库"页横向对比
+- [x] 实现 `quant/portfolio/optimizer.py`：均值方差（MVO）求解器，加约束（权重上下限、行业暴露）
+- [x] 实现 Risk Parity：基于风险贡献相等的权重分配
+- [x] 实现 Black-Litterman：把主观观点（如行业超配）融入 MVO 先验
+- [x] 三种方法在 Dashboard "策略库"页横向对比
 
 **信号融合升级：**
 
-- [ ] 重构 `quant/advisor/position.py`：四路信号（regime / vol / sector / macro）显式加权融合
-- [ ] 权重可在 Dashboard "仓位建议"页在线调整，实时刷新结果
-- [ ] 实盘对账：导入 `10_my_portfolio` 流水，计算与建议仓位的偏差分布
+- [x] 重构 `quant/advisor/position.py`：四路信号（regime / vol / sector / macro）显式加权融合
+- [x] 权重可在 Dashboard "仓位建议"页在线调整，实时刷新结果
+- [x] 实盘对账：导入 `10_my_portfolio` 流水，计算与建议仓位的偏差分布
 
 **学习点：** 凸优化（cvxpy）、风险贡献分解、主观观点与量化的协调
 

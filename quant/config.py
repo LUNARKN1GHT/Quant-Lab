@@ -162,6 +162,23 @@ class MarketNeutralConfig:
 
 
 @dataclass
+class SignalWeightsConfig:
+    """思路信号融合权重"""
+
+    regime: float = 0.4
+    """市场环境信号权重"""
+
+    vol: float = 0.3
+    """波动率目标信号权重"""
+
+    macro: float = 0.2
+    """宏观景气信号权重"""
+
+    sector: float = 0.1
+    """行业动量信号权重"""
+
+
+@dataclass
 class Config:
     """全局配置根对象，聚合所有子配置。
 
@@ -179,6 +196,7 @@ class Config:
     advisor: AdvisorConfig = field(default_factory=AdvisorConfig)
     stat_arb: StatArbConfig = field(default_factory=StatArbConfig)
     market_neutral: MarketNeutralConfig = field(default_factory=MarketNeutralConfig)
+    signal_weights: SignalWeightsConfig = field(default_factory=SignalWeightsConfig)
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "Config":
@@ -195,6 +213,7 @@ class Config:
             advisor=AdvisorConfig(**raw.get("advisor", {})),
             stat_arb=StatArbConfig(**raw.get("stat_arb", {})),
             market_neutral=MarketNeutralConfig(**raw.get("market_neutral", {})),
+            signal_weights=SignalWeightsConfig(**raw.get("signal_weights", {})),
         )
 
     def to_yaml(self, path: str | Path) -> None:

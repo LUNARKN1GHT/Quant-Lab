@@ -3,7 +3,7 @@ data:
   universe: "csi300"
 
 factor:
-  momentum_windows: [ 20, 60, 120 ]
+  momentum_windows: [20, 60, 120]
   rsi_window: 14
   macd_fast: 12
   macd_slow: 26
@@ -51,3 +51,9 @@ market_neutral:
   n_long: 60
   n_short: 20
   momentum_window: 20
+
+signal_weights:
+  regime: 0.4
+  vol: 0.3
+  macro: 0.2
+  sector: 0.1
