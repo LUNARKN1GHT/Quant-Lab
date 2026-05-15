@@ -86,11 +86,12 @@ def get_nav(syms):
 
 @st.cache_data(ttl=3600, show_spinner="计算市场信号...")
 def get_advisor_signal():
+    from dashboard.shared import load_close
     from quant.config import Config
 
     cfg = Config()
     try:
-        return latest_signal(cfg=cfg)
+        return latest_signal(cfg=cfg, close=load_close())
     except Exception as e:
         return {"error": str(e)}
 
