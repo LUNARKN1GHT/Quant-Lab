@@ -20,6 +20,7 @@ def _mvo(
     risk_aversion: float,
     w_min: float,
     w_max: float,
+    sector_constraints: list[tuple[np.ndarray, float, float]] | None = None,
 ) -> np.ndarray:
     """均值方差优化：min ½λ·w'Σw - μ'w，subject to Σw=1, w_min≤w≤w_max。
 
@@ -33,13 +34,18 @@ def _mvo(
     def gradient(w: np.ndarray) -> np.ndarray:
         return risk_aversion * (cov @ w) - mu
 
+    cons: list[dict] = [{"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}]
+    for vec, lo, hi in sector_constraints or []:
+        cons.append({"type": "ineq", "fun": lambda w, v=vec, b=hi: float(b - v @ w)})
+        cons.append({"type": "ineq", "fun": lambda w, v=vec, b=lo: float(v @ w - b)})
+
     result = minimize(  # type: ignore
         neg_utility,
         x0=np.ones(n) / n,
         jac=gradient,
         method="SLSQP",
         bounds=[(w_min, w_max)] * n,
-        constraints={"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)},
+        constraints=cons,  # type: ignore
         options={"ftol": 1e-10, "maxiter": 500},
     )
     return np.asarray(result.x, dtype=float)
@@ -95,6 +101,7 @@ def optimize(
     risk_aversion: float = 1.0,
     w_min: float = 0.0,
     w_max: float = 1.0,
+    sector_constraints: list[tuple[np.ndarray, float, float]] | None = None,
 ) -> np.ndarray:
     """统一入口：返回归一化权重向量。
 
@@ -119,7 +126,7 @@ def optimize(
     if method == "equal_weight":
         return _equal_weight(n)
     if method == "mvo":
-        return _mvo(mu_arr, cov_arr, risk_aversion, w_min, w_max)
+        return _mvo(mu_arr, cov_arr, risk_aversion, w_min, w_max, sector_constraints)
     return _risk_parity(cov_arr, w_min, w_max)
 
 
@@ -142,3 +149,50 @@ def portfolio_stats(
     port_vol = float(np.sqrt(w_arr @ cov_arr @ w_arr))
     sharpe = (port_return - rf) / port_vol if port_vol > 0 else 0.0
     return {"return": port_return, "volatility": port_vol, "sharpe": sharpe}
+
+
+def black_litterman(
+    cov: np.ndarray,
+    w_market: np.ndarray,
+    P: np.ndarray,
+    Q: np.ndarray,
+    tau: float = 0.05,
+    Omega: np.ndarray | None = None,
+    risk_aversion: float = 2.5,
+) -> np.ndarray:
+    """Black-Litterman 后验预期收益
+
+    Args:
+        cov (np.ndarray): 年化协方差矩阵
+        w_market (np.ndarray): 市值权重向量
+        P (np.ndarray): 观点矩阵，每行一个观点
+        Q (np.ndarray): 观点收益向量
+        tau (float, optional): 先验不确定系数. Defaults to 0.05.
+        Omega (np.ndarray | None, optional): 观点误差协方差. Defaults to None.
+        risk_aversion (float, optional): 市场隐含风险厌恶系数. Defaults to 2.5.
+
+    Returns:
+        np.ndarray: 后验年化预期收益向量
+    """
+    cov_arr = np.asarray(cov, dtype=float)
+    w_mkt = np.asarray(w_market, dtype=float).flatten()
+    P_arr = np.asarray(P, dtype=float)
+    Q_arr = np.asarray(Q, dtype=float).flatten()
+
+    # 均衡隐含收益 π = λ Σ w_mkt
+    pi = risk_aversion * cov_arr @ w_mkt
+
+    # 观点误差协方差：默认 Ω = diag(P (τΣ) P^T)，与观点方差成比例
+    tau_cov = tau * cov_arr
+    if Omega is None:
+        Omega = np.diag(np.diag(P_arr @ tau_cov @ P_arr.T))
+
+    # BL 后验公式（矩阵形式）
+    # μ_BL = [(τΣ)^{-1} + P^T Ω^{-1} P]^{-1} [(τΣ)^{-1} π + P^T Ω^{-1} Q]
+    tau_cov_inv = np.linalg.inv(tau_cov)
+    omega_inv = np.linalg.inv(Omega)  # type:ignore
+
+    M = tau_cov_inv + P_arr.T @ omega_inv @ P_arr
+    rhs = tau_cov_inv @ pi + P_arr.T @ omega_inv @ Q_arr
+    mu_bl = np.linalg.solve(M, rhs)
+    return mu_bl
