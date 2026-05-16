@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 from dashboard.shared import load_close, sidebar_config
 from quant.factor.bollinger import bollinger_position
@@ -564,51 +565,105 @@ with tab_research:
             """)
 
     with sub2:
-        deep_path = _IMG_DIR / "factor_deep_analysis.png"
-        if deep_path.exists():
-            st.image(str(deep_path), width="stretch")
-        else:
-            st.warning("请先运行 scripts/research_factor_analysis.py")
+        st.subheader("实时 IC 衰减分析")
+        st.caption(
+            "对当前因子在多个前瞻窗口（1/5/10/20/40/60 日）下计算 IC 与 ICIR，"
+            "衡量因子预测能力随时间的衰减速度"
+        )
 
-        st.subheader("IC 衰减汇总")
-        decay_data = {
-            "预测窗口": [5, 10, 20, 40, 60],
-            "主力资金 IC均值": [0.023, 0.056, 0.091, 0.128, 0.155],
-            "主力资金 ICIR": [0.12, 0.29, 0.48, 0.65, 0.76],
-            "财务加速度 IC均值": [0.018, 0.020, 0.021, 0.019, 0.018],
-            "财务加速度 ICIR": [0.10, 0.11, 0.12, 0.10, 0.09],
-        }
-        df_decay = pd.DataFrame(decay_data).set_index("预测窗口")
+        col_f, col_w = st.columns([2, 1])
+        decay_factor = col_f.selectbox(
+            "选择因子",
+            _ALL_FACTOR_TYPES,
+            index=_ALL_FACTOR_TYPES.index("动量"),
+            key="decay_factor",
+        )
+        decay_window = col_w.selectbox(
+            "因子计算窗口",
+            _ALL_WINDOWS,
+            index=_ALL_WINDOWS.index(_DEFAULT_WINDOWS.get(decay_factor, 20)),
+            key="decay_window",
+        )
 
-        fig_decay = go.Figure()
-        fig_decay.add_trace(
-            go.Scatter(
-                x=df_decay.index,
-                y=df_decay["主力资金 ICIR"],
-                name="主力资金",
-                mode="lines+markers",
-                line=dict(color="steelblue", width=2),
+        if st.button("🚀 运行 IC 衰减计算", type="primary", key="btn_ic_decay"):
+            from quant.factor.ic import calc_ic_decay
+
+            close = load_close()
+            with st.spinner("计算因子值..."):
+                factor_df = _compute_factor(decay_factor, close, window=decay_window)
+            with st.spinner("逐窗口计算 IC..."):
+                decay_df = calc_ic_decay(factor_df, close)
+            st.session_state["ic_decay_result"] = {
+                "factor": decay_factor,
+                "window": decay_window,
+                "decay": decay_df,
+            }
+
+        if "ic_decay_result" in st.session_state:
+            res = st.session_state["ic_decay_result"]
+            decay_df = cast(pd.DataFrame, res["decay"])
+
+            st.markdown(f"**因子：{res['factor']}（窗口={res['window']}）**")
+
+            fig_decay = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_decay.add_trace(
+                go.Bar(
+                    x=decay_df.index,
+                    y=decay_df["ic_mean"],
+                    name="IC 均值",
+                    marker_color="steelblue",
+                    opacity=0.6,
+                ),
+                secondary_y=False,
             )
-        )
-        fig_decay.add_trace(
-            go.Scatter(
-                x=df_decay.index,
-                y=df_decay["财务加速度 ICIR"],
-                name="财务加速度",
-                mode="lines+markers",
-                line=dict(color="darkorange", width=2),
+            fig_decay.add_trace(
+                go.Scatter(
+                    x=decay_df.index,
+                    y=decay_df["icir"],
+                    name="ICIR",
+                    mode="lines+markers",
+                    line=dict(color="darkorange", width=2),
+                ),
+                secondary_y=True,
             )
-        )
-        fig_decay.add_hline(
-            y=0.3, line_dash="dash", line_color="green", annotation_text="有效阈值 0.3"
-        )
-        fig_decay.update_layout(
-            title="IC 衰减曲线（ICIR vs 预测窗口）",
-            xaxis_title="预测窗口（交易日）",
-            yaxis_title="ICIR",
-            hovermode="x unified",
-        )
-        st.plotly_chart(fig_decay, width="stretch")
+            fig_decay.add_hline(
+                y=0.3,
+                line_dash="dash",
+                line_color="green",
+                annotation_text="ICIR 有效阈值 0.3",
+                secondary_y=True,
+            )
+            fig_decay.update_layout(
+                xaxis_title="前瞻窗口（交易日）",
+                hovermode="x unified",
+                height=400,
+                margin=dict(t=20, b=20),
+            )
+            fig_decay.update_yaxes(title_text="IC 均值", secondary_y=False)
+            fig_decay.update_yaxes(title_text="ICIR", secondary_y=True)
+            st.plotly_chart(fig_decay, width="stretch")
+
+            st.dataframe(
+                decay_df.style.format(
+                    {
+                        "ic_mean": "{:+.4f}",
+                        "ic_std": "{:.4f}",
+                        "icir": "{:+.3f}",
+                        "n_periods": "{:.0f}",
+                    }
+                ),
+                width="stretch",
+            )
+
+            with st.expander("如何解读 IC 衰减"):
+                st.markdown(
+                    """
+                    - **快速衰减**:高频信号，适合短线策略
+                    - **慢速衰减**:低频结构性信号，适合中长线持仓
+                    - **平直曲线**：因子在各窗口稳定有效，最理想
+                    - **负值或反转**：因子方向需反向使用
+                        """
+                )
 
     with sub3:
         regime_data = {

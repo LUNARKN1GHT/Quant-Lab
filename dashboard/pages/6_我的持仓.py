@@ -328,6 +328,28 @@ with tab_chart:
         )
         st.plotly_chart(fig, width="stretch")
 
+        # --- 基金收益相关性热力图 ----------
+        if len(sel_sym) >= 2:
+            st.subheader("持仓基金收益相关性")
+            ret_mat = nav[sel_sym].pct_change().dropna()
+            corr = ret_mat.corr()
+            labels = [names.get(s, s) for s in corr.columns]
+            fig_corr = go.Figure(
+                go.Heatmap(
+                    z=corr.values,
+                    x=labels,
+                    y=labels,
+                    colorscale="RdBu",
+                    zmin=-1,
+                    zmax=1,
+                    text=corr.round(2).values,
+                    texttemplate="%{text}",
+                    colorbar=dict(title="相关系数"),
+                )
+            )
+            fig_corr.update_layout(height=400, margin=dict(t=20, b=20))
+            st.plotly_chart(fig_corr, width="stretch")
+
 
 # ── Tab 3：交易记录 ────────────────────────────────────────────────────────────
 with tab_txn:
@@ -1145,6 +1167,54 @@ with tab_advice:
                         "均线偏离": "{:+.2%}",
                         "布林位置": "{:.2f}",
                     }
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+
+        st.divider()
+
+        # ── 风格归因 ──────────────────────────────────────────────────────────
+        st.subheader("📐 持仓基金风格归因")
+        st.caption(
+            "将基金 NAV 收益回归到沪深300 / 中证500，分解 Beta 暴露与超额收益（Alpha）"
+        )
+
+        if st.button("📥 加载基准数据并计算风格归因", key="btn_style"):
+            from quant.data.benchmark import load_benchmarks
+            from quant.fund.style import fund_style_report
+
+            try:
+                benchmarks = load_benchmarks()
+                style_rows = []
+                for _, h in holdings.iterrows():  # type: ignore
+                    sym = h["symbol"]
+                    if sym not in nav.columns:
+                        continue
+                    row = fund_style_report(
+                        nav[sym].dropna(), benchmarks, name=h["name"]
+                    )
+                    style_rows.append(row)
+                st.session_state["style_report"] = pd.DataFrame(style_rows)
+            except Exception as e:
+                st.error(f"加载失败：{e}")
+
+        if "style_report" in st.session_state:
+            sr = st.session_state["style_report"]
+            if "error" in sr.columns:
+                st.warning("部分基金数据不足，已跳过")
+                sr = sr[sr.get("error", pd.Series(dtype=str)).isna()]
+            numeric_cols = ["CSI300 Beta", "CSI500 Beta", "Alpha（年化）", "R²"]
+            existing = [c for c in numeric_cols if c in sr.columns]
+            fmt = {
+                "CSI300 Beta": "{:.3f}",
+                "CSI500 Beta": "{:.3f}",
+                "Alpha（年化）": "{:.2%}",
+                "R²": "{:.3f}",
+            }
+            st.dataframe(
+                sr[["name"] + existing].style.format(
+                    {k: v for k, v in fmt.items() if k in existing}
                 ),
                 hide_index=True,
                 width="stretch",
