@@ -73,6 +73,35 @@ IC 是统计量，不够直观。分层回测的逻辑是：把所有股票按�
 
 ---
 
+### IC 衰减（IC Decay）
+
+单一前瞻窗口的 IC 只告诉你"因子对下一期收益有没有预测力"，但不同因子的有效期长度差别很大：
+
+- **快速衰减因子**：1 日 IC 很高，5 日衰减到一半，20 日接近零——典型如短期反转、日内动量信号，适合高频策略
+- **慢速衰减因子**：1 日 IC 很弱，但 20~60 日窗口的 IC 反而更高——典型如盈利质量、估值类基本面因子，适合中长线持仓
+- **平直曲线**：各窗口 IC 接近——结构性强信号，最理想
+
+`calc_ic_decay()` 将因子在多个前瞻窗口下的 IC / ICIR 一次性算出来：
+
+```python
+from quant.factor.ic import calc_ic_decay
+
+decay = calc_ic_decay(factor_df, close, horizons=[1, 5, 10, 20, 40, 60])
+# index=horizon, columns=[ic_mean, ic_std, icir, n_periods]
+```
+
+内部对每个 horizon $h$，构造 $\text{fwd\_ret} = \text{close.pct\_change}(h).\text{shift}(-h)$，再调用 `calc_ic_series()` 逐日计算截面 IC，最后聚合为均值与 ICIR。
+
+`calc_ic_series()` 是 `calc_ic` 的批量版本：
+
+- 按日逐截面计算 Spearman IC
+- 单日有效股票数 < `min_stocks`（默认 10）时跳过该截面，避免小样本噪声主导
+- 跳过 `spearmanr` 返回 NaN 的截面（极端情形下因子或收益方差为 0）
+
+**衰减曲线的实战意义**：选择 horizon 时不应只看单个窗口最大值——一个 ICIR 在 60 日窗口达到 0.8 但 5 日窗口只有 0.1 的因子，实盘调仓频率必须匹配它的最优窗口，否则信号还没起作用就被换掉。反过来，一个在 1 日窗口最强但 20 日急速衰减的因子，月度调仓策略基本拿不到它的收益。
+
+---
+
 ### 多因子合成（Factor Combination）
 
 单因子预测能力有限，实际策略通常合成多个因子。`combine.py` 提供两种方式：
@@ -114,4 +143,4 @@ IC 是统计量，不够直观。分层回测的逻辑是：把所有股票按�
 - 上游：`quant/factor/` 各因子模块（`momentum.py`、`rsi.py` 等）计算因子值，传入 `calc_ic` 作为输入
 - 下游：`calc_icir` 的结果传入 `combine.py` 的 `ic_weight`，驱动多因子合成权重
 - 侧向：`quant/strategy/factor_strategy.py` 将合成后的因子转化为持仓权重，交给 `backtest/engine.py` 执行
-- Dashboard：`pages/4_factor_analyze.py` 和 `pages/8_factor_research_adv.py` 展示 IC 时序图和分层收益图
+- Dashboard：`pages/3_因子工坊.py` 的「IC 深度分析」子页支持选择任意因子+窗口，实时调用 `calc_ic_decay()` 输出衰减曲线（柱状 IC 均值 + 折线 ICIR，标注 0.3 有效阈值）
