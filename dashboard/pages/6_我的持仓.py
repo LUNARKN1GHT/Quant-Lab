@@ -87,6 +87,10 @@ def get_nav(syms):
     con = duckdb.connect(str(DB_PATH))
     nav = load_nav_matrix(con, syms)
     con.close()
+    # 补全缺失的 symbol 列，避免后续 nav[sym] KeyError
+    for s in syms:
+        if s not in nav.columns:
+            nav[s] = pd.NA
     return nav
 
 
@@ -178,7 +182,7 @@ with tab_overview:
             sym = h["symbol"]
             latest = (
                 nav[sym].dropna().iloc[-1]
-                if (not nav.empty and sym in nav.columns)
+                if (not nav.empty and sym in nav.columns and nav[sym].dropna().size > 0)
                 else None
             )
             if latest is None:
@@ -878,9 +882,15 @@ with tab_advice:
     if nav.empty or holdings.empty:
         st.info("需要持仓和净值数据才能生成建议。")
     else:
+        st.info(
+            "**第一步**: 看「市场信号与建议仓位」——判断当前市场环境，"
+            "决定整体要不要加减仓；\n\n"
+            "**第二步**: 看「持仓组合优化」"
+            "——在现有基金里，决定各基金的目标权重怎么分。"
+        )
         # ── 全局 Advisor 信号 ─────────────────────────────────────────────────
         st.subheader("📡 市场信号与建议仓位")
-        st.caption("基于沪深300趋势 × 波动率目标 × 宏观景气的三层仓位模型")
+        st.caption("综合市场趋势、波动率和宏观景气，给出建议的总权益仓位比例")
 
         signal = get_advisor_signal()
 
@@ -940,7 +950,7 @@ with tab_advice:
             # ── 持仓操作建议 ──────────────────────────────────────────────────
             st.subheader("持仓操作建议")
             st.caption(
-                "当前仓位与 Advisor 建议仓位的偏差，超过总资金 2% 时触发操作提示"
+                "对比你当前每只基金的实际仓位与建议仓位，偏差超过 2% 时提示需要操作"
             )
 
             # 构建含 mkt 的持仓 DataFrame
@@ -949,7 +959,8 @@ with tab_advice:
                 sym = h["symbol"]
                 if sym not in nav.columns:
                     continue
-                latest_nav_val = nav[sym].dropna().iloc[-1]
+                _s = nav[sym].dropna()
+                latest_nav_val = _s.iloc[-1] if len(_s) > 0 else None
                 mkt = h["shares"] * latest_nav_val
                 advice_rows.append(
                     {
@@ -977,8 +988,8 @@ with tab_advice:
                     width="stretch",
                 )
                 st.caption(
-                    "⚠️ 总资金当前仅含持仓市值，未计入现金。"
-                    "如需更精确的偏差计算，请在此处手动输入总资金。"
+                    "基于历史净值，用均值方差 / 风险平价 / BL "
+                    "三种方法给出各基金的建议权重，对比你的实际持仓"
                 )
 
             st.divider()
@@ -1231,7 +1242,8 @@ with tab_advice:
             sym = h["symbol"]
             if sym not in nav.columns:
                 continue
-            latest = nav[sym].dropna().iloc[-1]
+            _s = nav[sym].dropna()
+            latest = _s.iloc[-1] if len(_s) > 0 else None
             cost_val = h["shares"] * h["avg_cost_nav"]
             mkt_val = h["shares"] * latest
             ret = latest / h["avg_cost_nav"] - 1
@@ -1276,7 +1288,8 @@ with tab_advice:
                     sym = b["symbol"]
                     if sym not in nav.columns:
                         continue
-                    latest_nav_val = nav[sym].dropna().iloc[-1]
+                    _s = nav[sym].dropna()
+                    latest_nav_val = _s.iloc[-1] if len(_s) > 0 else None
                     ret_b = latest_nav_val / b["nav"] - 1
                     if hold_days > 180 and ret_b < 0:
                         st.warning(
