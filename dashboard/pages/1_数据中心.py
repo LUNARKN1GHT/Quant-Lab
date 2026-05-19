@@ -72,7 +72,9 @@ st.divider()
 
 # 增量更新
 st.subheader("增量更新数据")
-st.caption("只下载最新日期之后的数据，不重复拉取历史")
+st.caption(
+    "提示：增量更新仅同步最新数据，但受限于接口频率限制（含 sleep），仍需等待片刻。"
+)
 
 end_date = st.date_input(
     "更新至",
