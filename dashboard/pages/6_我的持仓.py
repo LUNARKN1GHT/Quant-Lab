@@ -87,6 +87,10 @@ def get_nav(syms):
     con = duckdb.connect(str(DB_PATH))
     nav = load_nav_matrix(con, syms)
     con.close()
+    # 补全缺失的 symbol 列，避免后续 nav[sym] KeyError
+    for s in syms:
+        if s not in nav.columns:
+            nav[s] = pd.NA
     return nav
 
 
@@ -178,7 +182,7 @@ with tab_overview:
             sym = h["symbol"]
             latest = (
                 nav[sym].dropna().iloc[-1]
-                if (not nav.empty and sym in nav.columns)
+                if (not nav.empty and sym in nav.columns and nav[sym].dropna().size > 0)
                 else None
             )
             if latest is None:
@@ -949,7 +953,8 @@ with tab_advice:
                 sym = h["symbol"]
                 if sym not in nav.columns:
                     continue
-                latest_nav_val = nav[sym].dropna().iloc[-1]
+                _s = nav[sym].dropna()
+                latest_nav_val = _s.iloc[-1] if len(_s) > 0 else None
                 mkt = h["shares"] * latest_nav_val
                 advice_rows.append(
                     {
@@ -1231,7 +1236,8 @@ with tab_advice:
             sym = h["symbol"]
             if sym not in nav.columns:
                 continue
-            latest = nav[sym].dropna().iloc[-1]
+            _s = nav[sym].dropna()
+            latest = _s.iloc[-1] if len(_s) > 0 else None
             cost_val = h["shares"] * h["avg_cost_nav"]
             mkt_val = h["shares"] * latest
             ret = latest / h["avg_cost_nav"] - 1
@@ -1276,7 +1282,8 @@ with tab_advice:
                     sym = b["symbol"]
                     if sym not in nav.columns:
                         continue
-                    latest_nav_val = nav[sym].dropna().iloc[-1]
+                    _s = nav[sym].dropna()
+                    latest_nav_val = _s.iloc[-1] if len(_s) > 0 else None
                     ret_b = latest_nav_val / b["nav"] - 1
                     if hold_days > 180 and ret_b < 0:
                         st.warning(
