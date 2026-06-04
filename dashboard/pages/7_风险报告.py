@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 
+from quant.data.benchmark import load_benchmark
 from quant.risk.report import risk_report
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -25,9 +26,11 @@ close = load_close()
 def _get_report(lookback: int) -> dict:
     eq_index = close.mean(axis=1)
     returns = eq_index.pct_change().dropna()
+    mkt = load_benchmark("CSI300")
     if lookback > 0:
         returns = returns.iloc[-lookback:]
-    return risk_report(returns)
+        mkt = mkt.iloc[-lookback:]
+    return risk_report(returns, market_returns=mkt)
 
 
 # --- 控制栏 ----------
@@ -41,13 +44,15 @@ lookback = st.selectbox(
 report = _get_report(lookback=lookback)
 
 # --- 顶部指标卡 ----------
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
 col1.metric("年化收益", f"{report['annual_return']:.1%}")
 col2.metric("年化波动", f"{report['annual_vol']:.1%}")
 col3.metric("Sharpe", f"{report['sharpe']:.2f}")
 col4.metric("Sortino", f"{report['sortino']:.2f}")
 col5.metric("最大回撤", f"{report['max_drawdown']:.1%}")
 col6.metric("Calmar", f"{report['calmar']:.2f}")
+col7.metric("Beta（vs 沪深300）", f"{report.get('beta', float('nan')):.2f}")
+col8.metric("Alpha（年化）", f"{report.get('alpha_annual', float('nan')):.1%}")
 
 st.divider()
 
